@@ -1,0 +1,12 @@
+# devenv
+.devenv*
+.direnv/
+
+# runtime state, disposable (wiping needs `podman unshare rm -rf container-data`)
+container-data/
+
+# local secrets
+.env
+
+# python bytecode
+__pycache__/

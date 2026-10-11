@@ -1,0 +1,8 @@
+# devenv inputs (https://devenv.sh/inputs/).
+#
+# `devenv` resolves these on the first command and pins the exact revisions
+# into devenv.lock, which is what makes the environment reproducible.
+# Run `devenv update` to move them forward.
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling

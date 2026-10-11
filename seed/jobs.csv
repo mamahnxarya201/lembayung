@@ -1,0 +1,67 @@
+name,department,no_of_recruitment,description,requirements
+Festival Director,Executive,0,Sets the creative and commercial direction of the festival season.,10+ years in live events
+General Manager,Executive,0,Runs day-to-day operations across all departments.,8+ years in event operations
+Executive Assistant,Executive,0,Executive scheduling and cross-department coordination.,3+ years executive support
+Head of Talent & Booking,Talent & Booking,0,Owns artist strategy and the booking pipeline.,8+ years in talent buying
+Senior Booking Manager,Talent & Booking,1,Negotiates headline and second-stage bookings.,6+ years artist negotiation
+Booking Manager,Talent & Booking,1,Handles mid-tier and regional artist bookings.,4+ years booking experience
+Artist Liaison,Talent & Booking,2,Primary contact for artists from offer to show day.,3+ years artist relations
+Contract & Rider Coordinator,Talent & Booking,1,"Processes artist contracts, riders and technical requirements.",2+ years contract admin
+Production Director,Production,0,Accountable for all technical production delivery.,10+ years live production
+Production Manager,Production,0,Plans and budgets production across all stages.,7+ years production management
+Production Coordinator,Production,1,"Schedules crews, vendors and equipment movements.",3+ years production coordination
+Technical Production Assistant,Production,2,Supports production admin and show reporting.,Entry level
+Stage Manager,Stage & Rigging,1,Runs stage operations and show calls.,6+ years stage management
+Rigging Supervisor,Stage & Rigging,1,"Owns rigging plans, load calculations and safety.",5+ years rigging
+Rigger,Stage & Rigging,3,Executes rigging plots to plan.,Certified rigger
+Backline Technician,Stage & Rigging,2,Prepares and maintains backline and instruments.,3+ years backline
+Stage Hand,Stage & Rigging,4,"Load-in, load-out and stage changeovers.",Entry level
+FOH Engineer,Audio,1,Mixes front of house for main stage acts.,7+ years FOH mixing
+Monitor Engineer,Audio,1,Mixes monitors and manages stage sound.,5+ years monitor mixing
+System Engineer,Audio,1,Designs and tunes PA systems per stage.,5+ years system design
+RF & Comms Technician,Audio,2,Manages RF coordination and crew comms.,3+ years RF experience
+Lighting Director,Lighting & Visual,1,Designs and operates lighting across stages.,7+ years lighting design
+Lighting Technician,Lighting & Visual,3,Preps and operates lighting rigs.,3+ years lighting
+Video & LED Technician,Lighting & Visual,2,Builds and runs LED walls and IMAG.,3+ years video/LED
+Content Playback Operator,Lighting & Visual,1,Runs show playback and content server.,2+ years playback
+Site Manager,Site Operations,1,"Owns site build, layout and infrastructure.",8+ years site operations
+Site Coordinator,Site Operations,2,Coordinates site crews and contractors.,4+ years site coordination
+Site Crew,Site Operations,6,"Site build, fencing, signage and general labour.",Entry level
+Power & Electrical Coordinator,Power & Utilities,1,Plans power distribution and generator capacity.,6+ years event power
+Generator Technician,Power & Utilities,2,Installs and monitors generators and distro.,3+ years generator work
+Sanitation Supervisor,Sanitation & Waste,1,"Runs toilets, water points and cleaning crews.",4+ years sanitation
+Waste & Recycling Officer,Sanitation & Waste,2,Delivers the waste and recycling programme.,2+ years waste management
+Traffic & Transport Manager,Traffic & Transport,1,Owns traffic management and transport plans.,6+ years traffic planning
+Shuttle Coordinator,Traffic & Transport,2,"Runs artist, crew and audience shuttle services.",3+ years transport coordination
+Ticketing Manager,Ticketing & Access,1,"Owns ticketing platform, pricing and reporting.",6+ years ticketing
+Access Control Coordinator,Ticketing & Access,2,"Runs gates, scanners and access zones.",4+ years access control
+Box Office Supervisor,Ticketing & Access,2,Manages box office and will-call.,3+ years box office
+Wristband & Accreditation Officer,Ticketing & Access,2,"Issues crew, artist and vendor accreditation.",2+ years accreditation
+Marketing Director,Marketing & PR,1,"Owns brand, campaign and audience growth.",9+ years marketing
+Social Media Manager,Marketing & PR,1,Runs social channels and community.,4+ years social media
+Content Producer,Marketing & PR,2,Produces campaign and show-day content.,3+ years content production
+Graphic Designer,Marketing & PR,2,"Designs campaign, signage and merchandise artwork.",3+ years design
+Press & PR Officer,Marketing & PR,1,"Handles press, media partners and crisis comms.",3+ years PR
+Sponsorship Manager,Sponsorship & Partnerships,1,Owns the sponsorship pipeline and renewals.,6+ years sponsorship
+Partnership Executive,Sponsorship & Partnerships,2,Develops and services brand partners.,3+ years partnerships
+Activation Coordinator,Sponsorship & Partnerships,2,Delivers partner activations on site.,2+ years activations
+Vendor Coordinator,Food & Beverage,1,Contracts and manages all food and retail vendors.,5+ years vendor management
+F&B Manager,Food & Beverage,1,Runs bar and food operations on site.,5+ years F&B operations
+Bar Operations Supervisor,Food & Beverage,2,"Supervises bars, stock and bartender crews.",3+ years bar operations
+Security Manager,Safety & Security,1,Owns security planning and licensed providers.,8+ years event security
+Crowd Safety Officer,Safety & Security,2,Monitors crowd density and egress.,4+ years crowd safety
+Medical & First Aid Lead,Medical & First Aid,1,Runs medical posts and emergency response.,Registered medical professional
+Paramedic,Medical & First Aid,4,Provides on-site medical response.,Certified paramedic
+Finance Manager,Finance & Legal,1,"Owns budgets, cashflow and reporting.",8+ years finance
+Permits & Licensing Officer,Finance & Legal,1,"Secures permits, licences and insurance.",4+ years permits/licensing
+Accountant,Finance & Legal,2,"Handles AP/AR, reconciliation and tax.",3+ years accounting
+Payroll Officer,Finance & Legal,1,Runs payroll for staff and crew.,3+ years payroll
+Volunteer Coordinator,Crew & Volunteers,1,"Recruits, trains and rosters volunteers.",4+ years volunteer management
+Crew Manager,Crew & Volunteers,2,Rosters and looks after paid crew.,4+ years crew management
+Crew Welfare Officer,Crew & Volunteers,2,"Runs crew catering, rest areas and wellbeing.",2+ years crew welfare
+Hospitality Manager,Artist Hospitality,1,Owns artist and VIP hospitality.,5+ years hospitality
+Artist Liaison Officer,Artist Hospitality,2,Looks after artists on show day.,3+ years artist liaison
+Backstage Coordinator,Artist Hospitality,2,"Runs backstage areas, dressing rooms and riders.",3+ years backstage
+Merchandise Manager,Merchandise & Retail,1,Owns merchandise range and retail revenue.,5+ years retail/merch
+Retail Supervisor,Merchandise & Retail,2,Supervises merch stands and stock.,2+ years retail supervision
+Sustainability Coordinator,Sustainability,1,"Owns sustainability, carbon and community programme.",3+ years sustainability

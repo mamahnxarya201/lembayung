@@ -1,0 +1,3 @@
+name,tz,schedule_type,hours_per_week,hours_per_day,full_time_required_hours,flexible_hours
+Office Hours (Jakarta),Asia/Jakarta,fully_fixed,40,8,40,False
+Festival Crew (Flexible),Asia/Jakarta,flexible,40,8,40,True

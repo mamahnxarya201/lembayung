@@ -1,0 +1,10 @@
+name,cost,uom_name,stock_qty,vendor
+Cement (bag),65000,Units,400,Toko Bangunan Sinar Jaya
+Sand (m3),250000,Units,60,Toko Bangunan Sinar Jaya
+Rebar 12mm (kg),15000,Units,2000,PT Baja Perkasa
+Plywood Sheet,180000,Units,150,CV Kayu Makmur
+Wood Beam (4m),320000,Units,120,CV Kayu Makmur
+Paint (gallon),220000,Units,80,Toko Cat Warna Abadi
+Electrical Cable (roll),450000,Units,40,PT Elektrikal Prima
+PVC Pipe (m),38000,Units,300,CV Pipa Sejahtera
+Ceramic Tile (box),85000,Units,100,Toko Keramik Indah
