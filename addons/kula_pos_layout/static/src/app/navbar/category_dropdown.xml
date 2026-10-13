@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- A standalone template, NOT an inheritance of point_of_sale.CategorySelector:
+         the JS class extends that component only to reuse its category
+         resolution, and this markup is entirely different. -->
+    <t t-name="kula_pos_layout.CategoryDropdown">
+        <Dropdown>
+            <!-- default slot = the trigger -->
+            <button class="btn btn-light btn-lg kula-cat-select" title="Filter by category">
+                <span t-attf-class="kula-cat-dot o_colorlist_item_color_{{ this.currentColor }}"/>
+                <span t-esc="this.currentName"/>
+                <i class="fa fa-angle-down ms-1" aria-hidden="true"/>
+            </button>
+
+            <t t-set-slot="content">
+                <div class="kula-cat-menu">
+                    <DropdownItem onSelected="() => this.selectCategory(0)">
+                        <span class="kula-cat-dot o_colorlist_item_color_0"/>
+                        <span>All</span>
+                    </DropdownItem>
+                    <DropdownItem t-foreach="this.categories" t-as="category" t-key="category.id"
+                                  onSelected="() => this.selectCategory(category.id)">
+                        <span t-attf-class="kula-cat-dot o_colorlist_item_color_{{ category.color or 0 }}"/>
+                        <span t-esc="category.name"/>
+                    </DropdownItem>
+                </div>
+            </t>
+        </Dropdown>
+    </t>
+</templates>

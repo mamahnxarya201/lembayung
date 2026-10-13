@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- Adds one empty slot to core's order line, between the product row and the
+         info list (notes, lots, price-per-unit).
+
+         A slot rather than unconditional markup: an unfilled slot renders
+         nothing, so the receipt (point_of_sale.OrderReceipt) and the ticket
+         screen — which reuse this same template and fill neither this slot nor
+         "pack-lot-icon" — are untouched. Only kula_pos_layout.OrderSummary fills
+         it, which scopes the stepper to the order pane of the product screen. -->
+    <t t-name="kula_pos_layout.OrderLine"
+       t-inherit="point_of_sale.Orderline"
+       t-inherit-mode="extension">
+
+        <!-- contains(@class, ...) and not hasclass('line-details'): hasclass()
+             never matches a hyphenated class name (see action_pad.xml). -->
+        <xpath expr="//div[contains(@class, 'line-details')]" position="after">
+            <t t-slot="kula-controls"/>
+        </xpath>
+    </t>
+</templates>

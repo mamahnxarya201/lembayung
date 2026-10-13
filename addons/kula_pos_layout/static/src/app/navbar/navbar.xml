@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="kula_pos_layout.Navbar"
+       t-inherit="point_of_sale.Navbar"
+       t-inherit-mode="extension">
+
+        <!-- Parked-order tabs: hold/park is not part of this layout.
+             Template inheritance has no position="remove" — an empty replace is
+             how a node is dropped. -->
+        <xpath expr="//OrderTabs" position="replace"/>
+
+        <!-- Barcode button: a counter cafe has no scanner attached. -->
+        <xpath expr="//button[i[contains(@class, 'fa-barcode')]]" position="replace"/>
+
+        <!-- Move the burger menu to the far left (it lives at the end of
+             .status-buttons by default, and CSS cannot move it out of that
+             nested flex container). position="move" is resolved by getNodes(),
+             which removes the node and re-inserts it at the target. -->
+        <xpath expr="//div[contains(@class, 'pos-leftheader')]" position="before">
+            <xpath expr="//Dropdown[.//i[contains(@class, 'fa-bars')]]" position="move"/>
+        </xpath>
+
+        <!-- Category dropdown, immediately left of the search field so the pair
+             reads as scope -> query.
+
+             Gated on pos.showSearchButton() as well, because the dropdown is a
+             SIBLING of the search field, not a child: core hides the search off
+             the ProductScreen (pos_store.showSearchButton returns false), but the
+             dropdown would otherwise survive it and show a category filter on the
+             PaymentScreen, where there is nothing to browse. -->
+        <xpath expr="//Input[@tModel]" position="before">
+            <CategoryDropdown t-if="pos.showSearchButton() and pos.config.kula_category_nav == 'dropdown'"/>
+        </xpath>
+    </t>
+</templates>

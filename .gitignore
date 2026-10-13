@@ -10,3 +10,6 @@ container-data/
 
 # python bytecode
 __pycache__/
+
+# macOS
+.DS_Store

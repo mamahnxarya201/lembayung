@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form_kula" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.kula_pos_layout</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="point_of_sale.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@id='pos_interface_section']" position="after">
+                <block title="KULA counter layout" id="kula_layout_section">
+                    <setting help="Where the product categories live. The dropdown frees the whole pane for products; tiles is Odoo's core behaviour with one tap per category.">
+                        <field name="pos_kula_category_nav"/>
+                    </setting>
+                    <setting help="Print a price on every product card. Odoo core shows none.">
+                        <field name="pos_kula_show_card_price"/>
+                    </setting>
+                    <setting help="Lower bound in pixels for a product card. The grid fits as many columns as the screen allows. 150 gives about 5 columns at 1280px wide and 4 at 1024px.">
+                        <field name="pos_kula_card_min_width"/>
+                    </setting>
+                    <setting help="In Odoo 19 the (...) popup is the only route to 'Cancel Order' and 'Pricelist' from this screen.">
+                        <field name="pos_kula_show_more_button"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

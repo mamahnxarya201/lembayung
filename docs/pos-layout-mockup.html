@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KULA POS — Product Screen layout (responsive)</title>
+<style>
+  /* ============================================================================
+     KULA POS — ProductScreen layout mockup  ·  Odoo 19 point_of_sale
+     Palette read from the running odoo:19.0 container
+     ($o-community-color: #71639e; Odoo 12-colour list).
+
+     RESPONSIVE STRATEGY — read this before changing sizes
+     ---------------------------------------------------------------------------
+     1. NO fixed canvas. .stage fills the viewport (100dvh). Nothing is absolutely
+        positioned against a 1280x800 grid, so any tablet size just works.
+
+     2. Pane split is proportional with sane bounds:
+            .orderpane { width: clamp(300px, 32%, 430px) }
+        The menu pane takes whatever is left (flex:1). No breakpoint needed.
+
+     3. Product grid column COUNT is derived, not declared:
+            repeat(auto-fill, minmax(clamp(150px,11vw,200px), 1fr))
+        The browser fits as many >=150px columns as the pane allows. Measured:
+          1280x800  -> 5 cols      1024x768  -> 4 cols
+          1920x1200 -> 7 cols       800x1280  -> 3 cols (portrait)
+        This replaces the old hardcoded repeat(5,1fr), which broke on every
+        other tablet.
+
+     4. Height-critical pieces scale with vh via clamp() so short screens don't
+        clip: navbar, card height, numpad keys, Pay button, total type.
+
+     5. Media queries are used ONLY for genuine shape changes, never for sizing:
+            <= 900px   navbar drops its text labels (icon-only tabs)
+            <= 760px   panes stack in one column (below tablet, non-breaking)
+     ============================================================================ */
+  :root{
+    --brand:#71639e;
+    --brand-d:#5f5289;
+    --text:#374151;
+    --text-strong:#111827;
+    --muted:#6b7280;
+    --faint:#9ca3af;
+    --line:#e6e6ec;
+    --pane:#f4f4f6;
+    --chip:#f1f1f4;
+    --white:#fff;
+
+    /* fluid knobs — one place to tune the whole screen */
+    --nav-h:  clamp(48px, 7vh, 60px);
+    --gap:    clamp(6px, 1vh, 10px);
+    --pad:    clamp(8px, 1.2vw, 14px);
+
+    --key-h:  clamp(34px, 5.6vh, 48px);   /* numpad + secondary buttons */
+    --pay-h:  clamp(48px, 7.4vh, 62px);
+    --card-h: clamp(100px, 16vh, 148px);
+    --total:  clamp(17px, 2.4vh, 22px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+    color:var(--text);
+    background:var(--white);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 100dvh + 100vh fallback: dvh tracks mobile browser chrome correctly */
+  .stage{
+    height:100vh;height:100dvh;
+    display:flex;flex-direction:column;overflow:hidden;background:var(--white);
+  }
+  svg{display:block;flex:none}
+
+  /* ================= NAVBAR ================= */
+  .navbar{
+    height:var(--nav-h);flex:none;display:flex;align-items:center;gap:var(--gap);
+    padding:0 10px;border-bottom:1px solid var(--line);background:var(--white);
+  }
+  .seg{display:flex;gap:2px;background:var(--chip);border-radius:9px;padding:3px;flex:none}
+  .seg button{
+    display:flex;align-items:center;gap:7px;height:calc(var(--nav-h) - 18px);
+    padding:0 clamp(9px, 1.2vw, 15px);border:0;border-radius:7px;
+    background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:500;cursor:pointer;
+    white-space:nowrap;
+  }
+  .seg button.active{background:var(--white);font-weight:650;box-shadow:0 1px 2px rgba(16,24,40,.10)}
+  .seg button:not(.active){color:var(--muted)}
+
+  /* min-width:0 lets the search actually shrink inside the flex row */
+  .search{
+    flex:1 1 140px;min-width:0;max-width:340px;height:calc(var(--nav-h) - 18px);
+    display:flex;align-items:center;gap:8px;
+    padding:0 11px;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--faint);
+  }
+  .search span{font-size:13.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spacer{flex:1 1 auto;min-width:0}
+  .cashier{
+    display:flex;align-items:center;gap:7px;height:calc(var(--nav-h) - 18px);
+    padding:0 clamp(8px, 1vw, 12px);border-radius:8px;background:var(--chip);
+    font-size:13.5px;font-weight:600;color:var(--text);flex:none;
+  }
+  .icon-btn{
+    width:calc(var(--nav-h) - 18px);height:calc(var(--nav-h) - 18px);
+    display:flex;align-items:center;justify-content:center;
+    border:0;border-radius:8px;background:var(--chip);color:var(--text);cursor:pointer;flex:none;
+  }
+  /* category dropdown — replaced the vertical rail */
+  .cat-select{
+    display:flex;align-items:center;gap:8px;height:calc(var(--nav-h) - 18px);
+    padding:0 clamp(8px, 1vw, 12px);flex:none;max-width:170px;
+    border:1px solid var(--line);border-radius:8px;background:var(--white);
+    font:inherit;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap;
+  }
+  .cat-select .dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+  .cat-select .chev{color:var(--muted);flex:none}
+
+  /* ================= BODY ================= */
+  .body{flex:1;display:flex;min-height:0}
+
+  /* ---------- MENU pane (left) ---------- */
+  .menupane{flex:1 1 auto;display:flex;min-width:0;min-height:0;background:var(--pane)}
+
+  .products{
+    flex:1;min-width:0;min-height:0;overflow-y:auto;
+    padding:var(--pad);display:flex;flex-direction:column;gap:var(--gap);
+  }
+  .prod-head{display:flex;align-items:baseline;gap:9px;flex:none;padding:0 2px}
+  .prod-head .t{font-size:15px;font-weight:700;color:var(--text-strong)}
+  .prod-head .c{font-size:12.5px;color:var(--muted)}
+
+  /* KEY RESPONSIVE RULE: column count comes from available width, not a constant */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(clamp(150px, 11vw, 200px), 1fr));
+    gap:var(--gap);align-content:start;
+  }
+  .card{
+    position:relative;min-height:var(--card-h);
+    border:1px solid color-mix(in srgb,var(--c) 26%,var(--line));
+    border-radius:10px;background:var(--white);
+    background:color-mix(in srgb,var(--c) 7%,var(--white));
+    padding:clamp(9px, 1vw, 12px);
+    display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;
+  }
+  .card .nm{font-size:clamp(13.5px, 1.05vw, 15px);font-weight:650;color:var(--text-strong);line-height:1.25}
+  .card .pr{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+  .card .qty{
+    position:absolute;right:9px;bottom:9px;min-width:24px;height:23px;padding:0 7px;border-radius:7px;
+    background:#1f2937;color:#fff;font-size:12.5px;font-weight:750;
+    display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;
+  }
+
+  /* ---------- ORDER pane (right) ---------- */
+  /* proportional width, bounded: never narrower than the numpad needs,
+     never so wide that it starves the menu on a big screen */
+  .orderpane{
+    width:clamp(300px, 32%, 430px);flex:none;
+    display:flex;flex-direction:column;gap:var(--gap);
+    padding:var(--pad);border-left:1px solid var(--line);
+    background:var(--white);min-height:0;overflow:hidden;
+  }
+  .order-head{display:flex;align-items:baseline;justify-content:space-between;flex:none;gap:8px}
+  .order-head .no{font-size:14.5px;font-weight:700;color:var(--text-strong);white-space:nowrap}
+  .order-head .meta{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* flex-shrink + overflow: on short screens the ticket scrolls instead of
+     pushing the Pay button off-screen. min-height:0 is required for that. */
+  .lines{display:flex;flex-direction:column;gap:6px;flex:0 1 auto;min-height:0;overflow-y:auto}
+  .line{
+    display:flex;align-items:center;gap:10px;min-height:clamp(44px, 6.6vh, 56px);padding:8px 10px;
+    border:1px solid var(--line);border-radius:9px;background:var(--white);
+  }
+  .line.sel{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));background:color-mix(in srgb,var(--brand) 7%,var(--white))}
+  .line .info{flex:1;min-width:0}
+  .line .nm{font-size:14.5px;font-weight:650;color:var(--text-strong);line-height:1.2;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .line .unit{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .line .amt{font-size:15px;font-weight:700;color:var(--text-strong);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .line .del{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--faint);cursor:pointer;border-radius:6px;flex:none}
+
+  .totals{flex:none;padding:10px 12px;border-radius:9px;background:var(--pane);display:flex;flex-direction:column;gap:6px}
+  .totals .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;color:var(--muted)}
+  .totals .row.grand{margin-top:2px;padding-top:8px;border-top:1px dashed #d8d8e0}
+  .totals .row.grand .lbl{font-size:14px;font-weight:700;color:var(--text)}
+  .totals .row.grand .val{font-size:var(--total);font-weight:800;color:var(--text-strong);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .totals .row .val{font-variant-numeric:tabular-nums;color:var(--text);white-space:nowrap}
+  .grow{flex:1 1 auto;min-height:0}
+
+  /* numpad — quantity only, Price/Disc modes intentionally removed */
+  .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex:none}
+  .numpad button{
+    height:var(--key-h);border:0;border-radius:8px;background:var(--chip);color:var(--text);
+    font:inherit;font-size:clamp(15px, 2.2vh, 19px);font-weight:550;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .numpad button.act{color:var(--muted)}
+
+  /* actionpad — exactly three controls */
+  .actionpad{display:flex;flex-direction:column;gap:8px;flex:none}
+  .pay{
+    height:var(--pay-h);border:0;border-radius:10px;background:var(--brand);color:#fff;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:0 clamp(12px, 1.4vw, 18px);font:inherit;
+    box-shadow:0 2px 6px rgba(113,99,158,.28);
+  }
+  .pay .lbl{font-size:clamp(15px, 2vh, 17px);font-weight:650}
+  .pay .amt{font-size:clamp(15px, 2vh, 17px);font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pad-row{display:flex;gap:8px}
+  .pad-row button{
+    flex:1;min-width:0;height:var(--key-h);border:0;border-radius:9px;background:var(--chip);color:var(--text);
+    font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+
+  /* ================= SHAPE CHANGES ONLY ================= */
+
+  /* Narrow tablet / portrait: drop the text labels, keep the icons.
+     Mirrors core POS's own ui.isSmall behaviour. */
+  @media (max-width: 900px){
+    /* .nav-lbl is navbar text ONLY. Deliberately not `.lbl`: that class labels
+       Total, Payment, Customer and Refund, which must stay readable at every
+       width — hiding it silently blanked the primary Pay button. */
+    .nav-lbl{display:none}
+    .seg button{padding:0 12px}
+    .cashier{padding:0 10px}
+    .cat-select{max-width:120px;overflow:hidden}
+  }
+
+  /* Below tablet width the two panes cannot coexist: stack them and let the
+     column scroll. Never reached by a tablet in either orientation. */
+  @media (max-width: 760px){
+    .body{flex-direction:column;overflow-y:auto}
+    .menupane{flex:none;min-height:52vh}
+    .orderpane{
+      width:auto;flex:none;border-left:0;border-top:1px solid var(--line);
+      max-height:none;overflow:visible;
+    }
+    .lines{overflow:visible}
+    .grow{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ============ NAVBAR ============ -->
+  <header class="navbar">
+    <!-- ☰ at the far left -->
+    <button class="icon-btn" title="Menu — cash in/out, reload, close session">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+
+    <div class="seg">
+      <button class="active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20V9l6-4 6 4v11M10 20v-5h4v5"/></svg>
+        <span class="nav-lbl">Register</span>
+      </button>
+      <button>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M8 8h7M8 12h7"/></svg>
+        <span class="nav-lbl">Orders</span>
+      </button>
+    </div>
+
+    <!-- category dropdown, beside the search bar -->
+    <button class="cat-select" style="--c:#71639e" title="Filter by category">
+      <span class="dot"></span>
+      <span>All</span>
+      <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+
+    <div class="search">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M20.5 20.5 16 16"/></svg>
+      <span>Search products…</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="cashier">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+      <span class="nav-lbl">Cashier</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+  </header>
+
+  <!-- ============ BODY ============ -->
+  <div class="body">
+
+    <!-- ---------- MENU pane (left) ---------- -->
+    <section class="menupane">
+      <div class="products">
+        <div class="prod-head">
+          <span class="t">All items</span>
+          <span class="c">15 products</span>
+        </div>
+
+        <div class="grid">
+          <div class="card" style="--c:#F06050"><div class="nm">Kopi</div><div class="pr">10.000</div><div class="qty">1</div></div>
+          <div class="card" style="--c:#F06050"><div class="nm">Americano</div><div class="pr">15.000</div></div>
+          <div class="card" style="--c:#F06050"><div class="nm">Cappuccino</div><div class="pr">20.000</div></div>
+          <div class="card" style="--c:#F06050"><div class="nm">Latte</div><div class="pr">22.000</div></div>
+          <div class="card" style="--c:#F06050"><div class="nm">Espresso</div><div class="pr">12.000</div></div>
+
+          <div class="card" style="--c:#30C381"><div class="nm">Es Teh</div><div class="pr">5.000</div><div class="qty">2</div></div>
+          <div class="card" style="--c:#30C381"><div class="nm">Sinom</div><div class="pr">7.000</div><div class="qty">1</div></div>
+          <div class="card" style="--c:#30C381"><div class="nm">Lemon Tea</div><div class="pr">12.000</div></div>
+          <div class="card" style="--c:#30C381"><div class="nm">Matcha Latte</div><div class="pr">25.000</div></div>
+          <div class="card" style="--c:#30C381"><div class="nm">Teh Tarik</div><div class="pr">11.000</div></div>
+
+          <div class="card" style="--c:#F7CD1F"><div class="nm">Jeruk Peras</div><div class="pr">13.000</div></div>
+          <div class="card" style="--c:#F7CD1F"><div class="nm">Es Kelapa</div><div class="pr">15.000</div></div>
+          <div class="card" style="--c:#F7CD1F"><div class="nm">Alpukat</div><div class="pr">18.000</div></div>
+          <div class="card" style="--c:#F7CD1F"><div class="nm">Melon</div><div class="pr">14.000</div></div>
+          <div class="card" style="--c:#F7CD1F"><div class="nm">Mangga</div><div class="pr">16.000</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- ORDER pane (right) ---------- -->
+    <section class="orderpane">
+      <div class="order-head">
+        <span class="no">Order #3</span>
+        <span class="meta">4 items · Walk-in</span>
+      </div>
+
+      <div class="lines">
+        <div class="line">
+          <div class="info">
+            <div class="nm">Kopi</div>
+            <div class="unit">1 × 10.000</div>
+          </div>
+          <div class="amt">10.000</div>
+          <button class="del" aria-label="Remove">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+        </div>
+
+        <div class="line sel">
+          <div class="info">
+            <div class="nm">Es Teh</div>
+            <div class="unit">2 × 5.000</div>
+          </div>
+          <div class="amt">10.000</div>
+          <button class="del" aria-label="Remove">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+        </div>
+
+        <div class="line">
+          <div class="info">
+            <div class="nm">Sinom</div>
+            <div class="unit">1 × 7.000</div>
+          </div>
+          <div class="amt">7.000</div>
+          <button class="del" aria-label="Remove">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="totals">
+        <div class="row"><span>Subtotal</span><span class="val">27.000</span></div>
+        <div class="row grand"><span class="lbl">Total</span><span class="val">IDR 27.000</span></div>
+      </div>
+
+      <div class="grow"></div>
+
+      <div class="numpad">
+        <button>7</button><button>8</button><button>9</button>
+        <button>4</button><button>5</button><button>6</button>
+        <button>1</button><button>2</button><button>3</button>
+        <button>0</button><button>.</button>
+        <button class="act" aria-label="Backspace">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-5-7z"/><path d="M12 9.5l5 5M17 9.5l-5 5"/></svg>
+        </button>
+      </div>
+
+      <div class="actionpad">
+        <button class="pay">
+          <span class="lbl">Payment</span>
+          <span class="amt">IDR 27.000</span>
+        </button>
+        <div class="pad-row">
+          <button>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+            <span class="lbl">Customer</span>
+          </button>
+          <button>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h10a4.5 4.5 0 0 1 0 9H8"/><path d="M7.5 6.5 4 10l3.5 3.5"/></svg>
+            <span class="lbl">Refund</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

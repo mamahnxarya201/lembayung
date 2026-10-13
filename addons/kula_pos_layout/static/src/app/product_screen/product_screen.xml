@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="kula_pos_layout.ProductScreen"
+       t-inherit="point_of_sale.ProductScreen"
+       t-inherit-mode="extension">
+
+        <!-- In-pane category tiles are suppressed while the navbar dropdown is in
+             use, so the entire pane width goes to products. -->
+        <xpath expr="//CategorySelector" position="attributes">
+            <attribute name="t-if" add="pos.config.kula_category_nav == 'tiles'" separator=" and "/>
+        </xpath>
+
+        <!-- Quantity numpad removed from this screen.
+
+             It existed for entering a quantity per line, and for the Price/Disc
+             modes (already dropped, see product_screen.js). At this counter the
+             cashier taps the product again to raise its quantity, so the pad was
+             only taking ~200px of vertical space away from the order lines.
+
+             An empty replace removes the node — template inheritance has no
+             position="remove". -->
+        <xpath expr="//Numpad" position="replace"/>
+
+        <!-- Expose the configurable card width to the SCSS as a custom property.
+             (Swapping the two panes and reordering the control row are done in
+             SCSS, so none of core's markup is duplicated here.) -->
+        <xpath expr="//div[hasclass('product-screen')]" position="attributes">
+            <attribute name="t-attf-style" add="--kula-card-min: {{ pos.config.kula_card_min_width }}px;"/>
+        </xpath>
+    </t>
+</templates>
