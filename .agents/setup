@@ -49,7 +49,7 @@ ODOO_CORE_MODULES="point_of_sale,stock,hr,account,l10n_id"
 # fresh CLI-created database does not have (no country -> USD company, IDR
 # inactive). Installing it in the same pass as l10n_id makes that a silent
 # no-op, so the two passes are deliberate.
-ODOO_CUSTOM_MODULES="kula_workspace,kula_pos_layout"
+ODOO_CUSTOM_MODULES="kula_security,kula_workspace,kula_pos_layout"
 ODOO_MODULES="$ODOO_CORE_MODULES,$ODOO_CUSTOM_MODULES"
 
 DB_READY_MARKER="container-data/.db-ready"

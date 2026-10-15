@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Cashier and barista.
+
+        Two roles, not one: a small cafe has people who do both, and the owner
+        asked for a user to be able to hold both at once. They are separate
+        groups rather than a single "staff" group so the roles can be told apart
+        later (reporting, per-role settings). Holding both is simply holding
+        both; nothing here makes them exclusive.
+
+        `group_kiosk_only` is what the two roles have in common. It is the marker
+        the register guard reads (kiosk_guard.js), and it is implied by each role
+        rather than granted by hand, so a user cannot end up a cashier without
+        it, and a user who is both does not get it twice.
+    -->
+
+    <record id="group_kiosk_only" model="res.groups">
+        <field name="name">Kiosk Only</field>
+        <field name="comment">Members may only use the Kiosk register: signing in takes them straight there, and the Odoo backend sends them back to it. Implied by Cashier and by Barista, so it is not granted by hand.</field>
+    </record>
+
+    <record id="group_cashier" model="res.groups">
+        <field name="name">Cashier</field>
+        <field name="privilege_id" ref="point_of_sale.res_groups_privilege_point_of_sale"/>
+        <field name="comment">Runs the register: takes orders and payment. Kiosk only.</field>
+        <field name="implied_ids" eval="[
+            (4, ref('base.group_user')),
+            (4, ref('point_of_sale.group_pos_user')),
+            (4, ref('group_kiosk_only')),
+        ]"/>
+    </record>
+
+    <record id="group_barista" model="res.groups">
+        <field name="name">Barista</field>
+        <field name="privilege_id" ref="point_of_sale.res_groups_privilege_point_of_sale"/>
+        <field name="comment">Makes the orders. Kiosk only, so they can see the queue at the counter. Can be held together with Cashier.</field>
+        <field name="implied_ids" eval="[
+            (4, ref('base.group_user')),
+            (4, ref('point_of_sale.group_pos_user')),
+            (4, ref('group_kiosk_only')),
+        ]"/>
+    </record>
+
+    <!--
+        Why the two groups imply what they do, and neither implies the other.
+
+        group_user is required and is NOT implied by group_pos_user (verified:
+        point_of_sale.group_pos_user has no implied_ids at all). Without it the
+        account is not an internal user and cannot load /pos/ui, which is a
+        backend route.
+
+        group_pos_user is what carries the register's access rights: creating and
+        writing pos.session, pos.order, pos.payment and friends. It also carries
+        the POS backend menus, which is why kiosk-only cannot be done with groups
+        alone. base.group_user already pulls in implied groups holding dozens of
+        menus, and an Odoo group can grant a menu but never take one away. The
+        guard in kiosk_guard.js is therefore what makes the role kiosk-only in
+        practice.
+    -->
+
+</odoo>
