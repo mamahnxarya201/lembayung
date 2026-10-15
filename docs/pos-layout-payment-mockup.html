@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KULA POS — Payment Screen layout (responsive)</title>
+<style>
+  /* ============================================================================
+     KULA POS — PaymentScreen layout mockup  ·  Odoo 19 point_of_sale
+
+     Companion to docs/pos-layout-design.md §10. Follows the same principle as
+     the ProductScreen: the DATA pane sits left, the COMMIT column sits right.
+
+       ProductScreen : [ menu (pick) ]        LEFT  |  [ order + numpad + PAY ]  RIGHT
+       PaymentScreen : [ amount + tenders ]   LEFT  |  [ methods + numpad + VALIDATE ] RIGHT
+
+     That puts Validate in the same bottom-right corner as Pay, so the commit
+     action never moves between screens.
+
+     Mapping to core's real DOM (for the module later):
+       .summarypane  <-  .center-content   (amount, payment lines, change)
+       .paypane      <-  .left-content     (methods, buttons, numpad, Back/Validate)
+     Core already has these two panes; swapping them is
+     `.main-content { flex-direction: row-reverse }` — CSS only, no markup move,
+     exactly how the ProductScreen panes were flipped.
+
+     RESPONSIVE STRATEGY — same as the ProductScreen mockup
+     1. No fixed canvas: .stage fills 100dvh.
+     2. Pay column: clamp(300px, 32%, 430px); summary takes the rest.
+     3. Height-critical pieces use vh-based clamp() so short screens don't clip.
+     4. Media queries only for shape changes (<=900px icon-only navbar,
+        <=760px stacked panes).
+     ============================================================================ */
+  :root{
+    --brand:#71639e;
+    --text:#374151;
+    --text-strong:#111827;
+    --muted:#6b7280;
+    --faint:#9ca3af;
+    --line:#e6e6ec;
+    --pane:#f4f4f6;
+    --chip:#f1f1f4;
+    --white:#fff;
+    --ok:#15803d;
+    --danger:#b91c1c;
+
+    --nav-h:  clamp(48px, 7vh, 60px);
+    --gap:    clamp(6px, 1vh, 10px);
+    --pad:    clamp(8px, 1.2vw, 14px);
+    --key-h:  clamp(38px, 6.2vh, 56px);
+    --cta-h:  clamp(48px, 7.4vh, 62px);
+    --amount: clamp(44px, 8.6vw, 118px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+    color:var(--text);background:var(--white);-webkit-font-smoothing:antialiased;
+  }
+  .stage{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;background:var(--white)}
+  svg{display:block;flex:none}
+
+  /* ================= NAVBAR ================= */
+  .navbar{
+    height:var(--nav-h);flex:none;display:flex;align-items:center;gap:var(--gap);
+    padding:0 10px;border-bottom:1px solid var(--line);background:var(--white);
+  }
+  .seg{display:flex;gap:2px;background:var(--chip);border-radius:9px;padding:3px;flex:none}
+  .seg button{
+    display:flex;align-items:center;gap:7px;height:calc(var(--nav-h) - 18px);
+    padding:0 clamp(9px, 1.2vw, 15px);border:0;border-radius:7px;background:transparent;
+    color:var(--text);font:inherit;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;
+  }
+  .seg button.active{background:var(--white);font-weight:650;box-shadow:0 1px 2px rgba(16,24,40,.10)}
+  .seg button:not(.active){color:var(--muted)}
+  .spacer{flex:1 1 auto;min-width:0}
+  .cashier{
+    display:flex;align-items:center;gap:7px;height:calc(var(--nav-h) - 18px);
+    padding:0 clamp(8px, 1vw, 12px);border-radius:8px;background:var(--chip);
+    font-size:13.5px;font-weight:600;flex:none;
+  }
+  .icon-btn{
+    width:calc(var(--nav-h) - 18px);height:calc(var(--nav-h) - 18px);
+    display:flex;align-items:center;justify-content:center;
+    border:0;border-radius:8px;background:var(--chip);color:var(--text);cursor:pointer;flex:none;
+  }
+
+  /* ================= BODY ================= */
+  .body{flex:1;display:flex;min-height:0}
+
+  /* ---------- SUMMARY pane (left): what is owed / tendered ---------- */
+  .summarypane{
+    flex:1 1 auto;min-width:0;display:flex;flex-direction:column;
+    gap:var(--gap);padding:var(--pad);background:var(--white);overflow:hidden;
+  }
+  .amount{
+    flex:none;text-align:center;font-weight:800;color:var(--text-strong);
+    font-size:var(--amount);line-height:1.05;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;padding:clamp(8px, 2vh, 28px) 0;
+    display:flex;align-items:baseline;justify-content:center;gap:.08em;
+  }
+  .amount .cur{font-size:.52em;font-weight:700;color:var(--muted)}
+  .tenderlist{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+  .tender{
+    display:flex;align-items:center;gap:12px;padding:clamp(10px,1.6vh,16px) 14px;
+    border-radius:10px;background:color-mix(in srgb, var(--brand) 12%, var(--white));
+    border:1px solid color-mix(in srgb, var(--brand) 30%, var(--line));
+  }
+  .tender .nm{font-size:15px;font-weight:650;color:var(--text-strong)}
+  .tender .amt{margin-left:auto;font-size:17px;font-weight:700;color:var(--text-strong);font-variant-numeric:tabular-nums}
+  .tender .x{width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--danger);flex:none}
+  .change{
+    flex:none;display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+    padding:10px 4px 2px;border-top:1px solid var(--line);
+    font-size:15px;font-weight:600;color:var(--ok);
+  }
+  .change .val{font-size:clamp(16px,2vh,20px);font-weight:750;font-variant-numeric:tabular-nums}
+
+  /* ---------- PAY pane (right): the commit column ---------- */
+  .paypane{
+    width:clamp(300px, 32%, 430px);flex:none;min-height:0;
+    display:flex;flex-direction:column;gap:var(--gap);padding:var(--pad);
+    border-left:1px solid var(--line);background:var(--pane);overflow:hidden;
+  }
+  .methods{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+  .method{
+    display:flex;align-items:center;gap:11px;padding:clamp(11px,1.7vh,16px) 14px;
+    border:1px solid var(--line);border-radius:10px;background:var(--white);
+    font:inherit;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;text-align:left;
+  }
+  .method .ico{color:var(--muted)}
+
+  .orderbtns{display:flex;gap:8px;flex:none}
+  .orderbtns button{
+    flex:1;min-width:0;height:var(--key-h);display:flex;align-items:center;justify-content:center;gap:8px;
+    border:1px solid var(--line);border-radius:9px;background:var(--white);
+    font:inherit;font-size:14px;font-weight:600;color:var(--text);cursor:pointer;
+  }
+  .orderbtns .box{width:15px;height:15px;border:1.5px solid var(--faint);border-radius:3px;flex:none}
+
+  /* IDR quick keys: append zeros. Labelled 000 / 00 rather than .000 / .00
+     because "." is this locale's DECIMAL separator — ".000" would turn 21 into
+     21.000 (= 21), not 21,000. */
+  .quickkeys{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:none}
+  .quickkeys button{
+    height:var(--key-h);border:0;border-radius:8px;background:var(--chip);color:var(--text-strong);
+    font:inherit;font-size:17px;font-weight:700;letter-spacing:.06em;cursor:pointer;
+  }
+
+  .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex:none}
+  .numpad button{
+    height:var(--key-h);border:0;border-radius:8px;background:var(--chip);color:var(--text);
+    font:inherit;font-size:clamp(16px,2.3vh,21px);font-weight:550;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .numpad button.act{color:var(--muted)}
+
+  .cta{display:flex;gap:8px;flex:none}
+  .cta .back{
+    flex:1;height:var(--cta-h);border:1px solid var(--line);border-radius:10px;background:var(--white);
+    font:inherit;font-size:15px;font-weight:650;color:var(--text);cursor:pointer;
+  }
+  .cta .validate{
+    flex:2;height:var(--cta-h);border:0;border-radius:10px;background:var(--brand);color:#fff;
+    font:inherit;font-size:16px;font-weight:700;cursor:pointer;
+    box-shadow:0 2px 6px rgba(113,99,158,.28);
+  }
+
+  /* ================= SHAPE CHANGES ONLY ================= */
+  @media (max-width: 900px){
+    .nav-lbl{display:none}
+    .seg button{padding:0 12px}
+    .cashier{padding:0 10px}
+  }
+  @media (max-width: 760px){
+    .body{flex-direction:column;overflow-y:auto}
+    .summarypane{flex:none;min-height:46vh}
+    .paypane{width:auto;flex:none;border-left:0;border-top:1px solid var(--line);overflow:visible}
+    .methods,.tenderlist{overflow:visible}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ================= NAVBAR ================= -->
+  <!-- Note: NO category dropdown and NO product search here. Core gates the
+       search on pos.showSearchButton(), which is false off the ProductScreen;
+       the dropdown must be gated the same way or it leaks onto this screen. -->
+  <header class="navbar">
+    <button class="icon-btn" title="Menu — cash in/out, reload, close session">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+
+    <div class="seg">
+      <button class="active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20V9l6-4 6 4v11M10 20v-5h4v5"/></svg>
+        <span class="nav-lbl">Register</span>
+      </button>
+      <button>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M8 8h7M8 12h7"/></svg>
+        <span class="nav-lbl">Orders</span>
+      </button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="cashier">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+      <span class="nav-lbl">Cashier</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+  </header>
+
+  <div class="body">
+
+    <!-- ---------- SUMMARY pane (left) ---------- -->
+    <section class="summarypane">
+      <div class="amount"><span class="cur">Rp</span>21,000.00</div>
+
+      <div class="tenderlist">
+        <div class="tender">
+          <span class="nm">Cash</span>
+          <span class="amt">Rp 50,000.00</span>
+          <span class="x" aria-label="Remove payment">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <div class="change"><span>Change</span><span class="val">Rp -29,000.00</span></div>
+    </section>
+
+    <!-- ---------- PAY pane (right) ---------- -->
+    <section class="paypane">
+
+      <div class="methods">
+        <button class="method">
+          <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6 12h.01M18 12h.01"/></svg>
+          Cash
+        </button>
+        <button class="method">
+          <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 10h19"/><path d="M6 14.5h4"/></svg>
+          Card
+        </button>
+        <button class="method">
+          <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6H16a2 2 0 0 1 2 2v1"/><rect x="6" y="9" width="15" height="10" rx="2"/><circle cx="17.5" cy="14" r="1.2"/></svg>
+          Customer Account
+        </button>
+      </div>
+
+      <div class="orderbtns">
+        <button>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+          Customer
+        </button>
+        <button>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>
+          Invoice
+          <span class="box"></span>
+        </button>
+      </div>
+
+      <!-- IDR quick keys. These replace core's +10 / +20 / +50, which add ten,
+           twenty and fifty RUPIAH (number_buffer_service INPUT_KEYS) — of no use
+           at an Indonesian counter. -->
+      <div class="quickkeys">
+        <button>000</button>
+        <button>00</button>
+      </div>
+
+      <div class="numpad">
+        <button>7</button><button>8</button><button>9</button>
+        <button>4</button><button>5</button><button>6</button>
+        <button>1</button><button>2</button><button>3</button>
+        <button>0</button><button>.</button>
+        <button class="act" aria-label="Backspace">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-5-7z"/><path d="M12 9.5l5 5M17 9.5l-5 5"/></svg>
+        </button>
+      </div>
+
+      <div class="cta">
+        <button class="back">Back</button>
+        <button class="validate">Validate</button>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

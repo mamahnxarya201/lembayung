@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="kula_pos_layout.ProductCard"
+       t-inherit="point_of_sale.ProductCard"
+       t-inherit-mode="extension">
+
+        <!-- Inserted into .product-content rather than the <article>.
+             These products DO have images, so an absolutely-positioned price
+             collided with the product name underneath the image. In flow, with
+             the SCSS turning .product-content into a centred column, the name
+             and price stack cleanly whether or not an image is present.
+
+             Selector notes: `contains(@class, ...)` because hasclass() does not
+             match hyphenated class names; and no hasclass('product') on the
+             <article> because its classes come from t-attf-class, so there is no
+             static class attribute at xpath-match time. -->
+        <xpath expr="//div[contains(@class, 'product-content')]" position="inside">
+            <div t-if="this.kulaShowPrice" class="kula-card-price" t-esc="this.kulaPrice"/>
+        </xpath>
+    </t>
+</templates>

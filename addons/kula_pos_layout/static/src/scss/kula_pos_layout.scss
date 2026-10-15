@@ -1,0 +1,333 @@
+/* =============================================================================
+   KULA POS Layout
+   =============================================================================
+   Everything positional lives here, so no core template markup is duplicated for
+   the pane swap or the control-row move.
+
+   Loaded after point_of_sale's own SCSS (this module depends on it). Where core
+   sets the same property from a single-class selector, these rules win on
+   specificity rather than on source order, which is deliberate: core's
+   `.leftpane` width and the product-card rules are all single-class.
+
+   Literal colours and var() fallbacks are used instead of SCSS variables so this
+   file has no dependency on Odoo's variable set.
+   ============================================================================= */
+
+$kula-border: var(--border-color, #e6e6ec);
+$kula-radius: 10px;
+
+/* -----------------------------------------------------------------------------
+   1. Pane swap — menu on the left, order on the right
+   `.product-screen` is a `d-flex` row whose children are `.leftpane` (the order,
+   numpad and paypad) then `.rightpane` (the products). row-reverse flips them
+   visually while the DOM — and therefore the tab order — stays as core built it.
+   -------------------------------------------------------------------------- */
+.product-screen {
+    flex-direction: row-reverse;
+
+    /* Core pins the order pane to $pos-left-pane-width (and a tablet value).
+       Replace both bounds with one proportional clamp: wide enough for a
+       3-column numpad, never wide enough to starve the menu on a large screen. */
+    .leftpane {
+        width: clamp(300px, 32%, 430px);
+        max-width: clamp(300px, 32%, 430px);
+
+        /* core uses `border-end` (border-right); after the flip the divider must
+           sit on the pane's inner edge instead. Core drops it again below 992px,
+           but `border-left` is ours and has to be removed explicitly there. */
+        border-right: 0 !important;
+        border-left: 1px solid #{$kula-border} !important;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   2. Responsive product grid
+   Column count is derived from the viewport, never declared. Core ships
+   `repeat(auto-fill, minmax(115px, 1fr))` plus two breakpoints; this replaces the
+   whole thing with a single clamp, so one value covers every tablet.
+
+   `--kula-card-min` is injected from pos.config.kula_card_min_width by the
+   ProductScreen template extension.
+   -------------------------------------------------------------------------- */
+.product-screen .product-list:not(.category-list) {
+    grid-template-columns:
+        repeat(auto-fill, minmax(clamp(var(--kula-card-min, 150px), 11vw, 200px), 1fr)) !important;
+
+    /* Cards scale with viewport height so a 768-tall screen never clips the grid.
+       `border-width: 1px` flattens the 6px bottom border core gives cards inside
+       .rightpane; scoping to the main grid keeps the combo popup untouched. */
+    .product {
+        min-height: clamp(130px, 20vh, 170px);
+        border-width: 1px;
+        border-radius: $kula-radius;
+    }
+
+    /* The name and the price stack and centre. Core makes .product-content a row
+       (d-flex) when there is no combo popup, which would put the price beside
+       the name; as a column it works with or without a product image. */
+    .product .product-content {
+        flex-direction: column;
+        justify-content: center;
+        gap: 2px;
+        text-align: center;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   3. Price on the product card
+   In flow inside .product-content (see the column rule above), so it can never
+   overlap the name — these products have images, which leaves the card body
+   short. No absolute positioning here on purpose.
+   -------------------------------------------------------------------------- */
+.kula-card-price {
+    color: var(--body-color, #374151);
+    font-size: 12.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
+/* -----------------------------------------------------------------------------
+   4. Secondary controls below the payment button
+   Core puts .control-buttons ABOVE .subpads (numpad + paypad). Turning .pads into
+   a flex column and reordering its two children moves Customer/Refund into the
+   thumb zone at the bottom — no markup change required.
+   -------------------------------------------------------------------------- */
+.pads {
+    display: flex;
+    flex-direction: column;
+
+    .subpads {
+        order: 1;
+    }
+
+    .control-buttons {
+        order: 2;
+
+        /* Customer and Refund share the row evenly instead of drifting apart */
+        > * {
+            flex: 1 1 0;
+        }
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   5. Payment button carries the total
+   -------------------------------------------------------------------------- */
+.kula-pay {
+    justify-content: space-between !important;
+    padding: 0 clamp(12px, 1.4vw, 18px) !important;
+
+    .kula-pay-label {
+        font-weight: 650;
+    }
+
+    .kula-pay-total {
+        font-weight: 750;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   6. Quantity-only numpad
+   Core's corner-radius rules assume a 4-column pad (:nth-child(4) and
+   :nth-last-child(4)); at 3 columns those land on the wrong keys, so give all
+   twelve keys a uniform radius. (.numpad-3-cols itself ships with core.)
+   -------------------------------------------------------------------------- */
+.numpad-3-cols .numpad-button {
+    border-radius: 8px !important;
+}
+
+/* -----------------------------------------------------------------------------
+   7. Navbar category dropdown
+   -------------------------------------------------------------------------- */
+.kula-cat-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 170px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.kula-cat-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+}
+
+.kula-cat-menu {
+    min-width: 200px;
+    max-height: 60vh;
+    overflow-y: auto;
+
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   9. PaymentScreen — same principle as the ProductScreen: data pane left,
+      commit column right.
+
+      Core already has the two panes, just the other way round: .left-content
+      holds the payment methods + numpad + Validate, .center-content holds the
+      amount and the tender lines. So the swap is CSS only — exactly how the
+      ProductScreen panes were flipped — and no markup is relocated.
+
+      Payoff: Validate lands in the same bottom-right corner as Pay, so the
+      commit action never moves between screens.
+
+      .main-content only exists in the desktop (non ui.isSmall) branch, so the
+      mobile layout is untouched.
+   -------------------------------------------------------------------------- */
+.payment-screen .main-content {
+    flex-direction: row-reverse;
+}
+
+.payment-screen .left-content {
+    /* core uses Bootstrap's col-md-4 (33.33%) with no divider; after the flip
+       this pane is on the right, so the divider belongs on its inner edge.
+
+       min-width must be reset explicitly: core's payment_screen.scss pins
+       .left-content to `width: 450px; min-width: 450px` (400px at a narrower
+       breakpoint), and min-width wins over width in CSS sizing — without this
+       the clamp below has no effect at all and the pane stays 450px wide. */
+    width: clamp(300px, 32%, 430px);
+    max-width: clamp(300px, 32%, 430px);
+    min-width: 0;
+    flex: none;
+    border-right: 0;
+    border-left: 1px solid #{$kula-border};
+}
+
+/* Core pins the amount to 125px with an INLINE style, which overflows the
+   narrower summary pane on smaller tablets, so !important is required to win
+   over it. Scoped to .main-content so the mobile branch keeps core's sizing. */
+.payment-screen .main-content .paymentlines-container .total {
+    font-size: clamp(44px, 8.6vw, 118px) !important;
+    line-height: 1.05;
+}
+
+/* The IDR quick-keys row that used to sit above the tender numpad is gone: its
+   000 / 00 keys were replaced by a single "00" key inside the pad itself, sitting
+   next to 0 where the (now useless) decimal point used to be. */
+
+/* -----------------------------------------------------------------------------
+   10. ReceiptScreen — the printed receipt on the left, the order actions on the
+       right.
+
+       Same CSS-only flip as the other two screens: the children of .default-view
+       are .actions (payment-successful banner, print, email, New Order) and
+       .pos-receipt-container (the ticket), so row-reverse swaps them with no
+       markup moved.
+
+       Scoped to lg and up on purpose: below that core stacks the two panes with
+       `flex-column`, and forcing row-reverse there would break the stacking.
+   -------------------------------------------------------------------------- */
+@include media-breakpoint-up(lg) {
+    /* `!important` is required, not defensive: core puts Bootstrap's
+       `flex-lg-row` on .default-view and that utility is defined as
+       `flex-direction: row !important`, so a plain declaration loses. The
+       ProductScreen and PaymentScreen flips needed no !important only because
+       neither .product-screen nor .main-content carries a flex-direction
+       utility. */
+    .receipt-screen .default-view {
+        flex-direction: row-reverse !important;
+    }
+
+    /* .actions carries Bootstrap's `border-end` utility, and Bootstrap border
+       utilities are !important too, so the flipped divider has to be as well. */
+    .receipt-screen .actions {
+        border-right: 0 !important;
+        border-left: 1px solid #{$kula-border} !important;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   11. Below-tablet floor: stack the panes instead of crushing them.
+   Not a target — a non-breaking fallback so nothing is ever unusable.
+   DOM order is leftpane then rightpane, so column-reverse puts the menu on top.
+   -------------------------------------------------------------------------- */
+@media (max-width: 760px) {
+    .product-screen {
+        flex-direction: column-reverse;
+
+        .leftpane {
+            width: auto;
+            max-width: none;
+            border-left: 0 !important;
+            border-top: 1px solid #{$kula-border} !important;
+        }
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   12. Order line stepper + delete (product screen order pane)
+
+       A second row inside each order line, inserted by
+       kula_pos_layout.OrderLine between the product row and the info list. A row
+       of its own rather than buttons appended to .line-details: the order pane is
+       300-430px wide, and three touch targets plus the price would leave nothing
+       for the product name, which already truncates.
+
+       Sizes are fixed, not clamp(): the pane width is set once in section 1, so
+       nothing here has to react to the viewport.
+   -------------------------------------------------------------------------- */
+.kula-line-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.kula-line-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid #{$kula-border};
+    border-radius: 8px;
+    background: var(--btn-bg, #f1f1f4);
+    color: var(--body-color, #111827);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--btn-hover-bg, #e7e7ee);
+    }
+
+    &:active {
+        background: var(--btn-active-bg, #dcdce6);
+    }
+}
+
+/* Destructive, so it is tinted; its position at the end of the row is what keeps
+   it from being hit by accident. */
+.kula-line-trash {
+    color: #dc3545;
+}
+
+.kula-line-qty {
+    min-width: 38px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* With the stepper printing the quantity, the badge in front of the product name
+   would be the same number twice on one line. :has() is already a core dependency
+   (orderline.scss uses it for .has-change), and it fails safe: on a browser
+   without it the badge simply stays, rather than disappearing. */
+.orderline:has(.kula-line-controls) .line-details .qty {
+    display: none;
+}

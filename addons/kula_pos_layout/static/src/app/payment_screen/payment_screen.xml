@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="kula_pos_layout.PaymentScreen"
+       t-inherit="point_of_sale.PaymentScreen"
+       t-inherit-mode="extension">
+
+        <!-- The tender numpad needs its own click handler.
+
+             The pad now carries a "00" key (see payment_screen.js), and
+             `sendKey("00")` is rejected: the number buffer whitelists single
+             digits plus +1/+2/+5/+10/+20/+50 (number_buffer_service INPUT_KEYS).
+             So clicks are routed through kulaNumpadClick, which expands "00" into
+             two "0" keypresses and passes everything else straight to the buffer.
+
+             `onClick.bind` is the same binding form core uses on the
+             ProductScreen pad. -->
+        <xpath expr="//Numpad" position="attributes">
+            <attribute name="onClick.bind">kulaNumpadClick</attribute>
+        </xpath>
+    </t>
+</templates>

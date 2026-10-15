@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Indonesian rupiah has no circulating subunit: every price is whole
+         rupiah. Odoo ships IDR with rounding 0.01 (base/data/res_currency_data.xml),
+         so every amount renders with two decimals — "Rp 200,000.00".
+
+         `res.currency.decimal_places` is a stored *computed* field derived from
+         rounding, and it is readonly:
+
+             @api.depends('rounding')
+             def _compute_decimal_places(self):
+                 if 0 < currency.rounding < 1:
+                     currency.decimal_places = ceil(log10(1 / currency.rounding))
+                 else:
+                     currency.decimal_places = 0
+
+         So rounding is the only writable knob, and 1 is the value that yields
+         decimal_places = 0 -> "Rp 200,000".
+
+         WHY A <function> AND NOT <record id="base.IDR">:
+         base wraps its currency data in <data noupdate="1">, so the ir_model_data
+         row for base.IDR has noupdate = true. A <record> pointing at it is
+         therefore SKIPPED on module upgrade (it would only take effect on a fresh
+         install). <function> is always executed, so this applies on install and
+         on every update, and is idempotent.
+
+         This is a localisation change rather than a layout one, and it is
+         deliberately global: money should read the same in the POS, on invoices
+         and in reports. Rounding to whole rupiah also means totals no longer
+         carry fractions nobody can pay. Remove this file if sen is ever needed
+         back. -->
+    <function name="write" model="res.currency">
+        <function name="search" model="res.currency">
+            <value eval="[('name', '=', 'IDR')]"/>
+        </function>
+        <value eval="{'rounding': 1}"/>
+    </function>
+
+</odoo>
