@@ -38,5 +38,8 @@ are no per-model breakpoints to maintain.
     },
     'installable': True,
     'auto_install': False,
+    # Cash + QRIS payment methods, and no Card or Customer Account: see
+    # hooks.py for why this is Python rather than module data.
+    'post_init_hook': 'post_init_hook',
     'license': 'LGPL-3',
 }

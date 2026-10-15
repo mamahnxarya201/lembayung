@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <!--
+        The QRIS buffer. Deliberately not a colour-coded yes/no: the safe
+        answer is the one that records nothing, so Cancel is the primary-looking
+        control and Confirm is the one the cashier has to mean.
+
+        The countdown is on screen because a timeout the cashier cannot see
+        reads as the app being broken rather than as a decision expiring.
+    -->
+    <t t-name="kula_pos_layout.QrisConfirmationDialog">
+        <Dialog title="'Confirm QRIS payment'">
+            <div class="kula-qris-dialog">
+                <p class="kula-qris-dialog-question">
+                    Are you sure?
+                </p>
+                <p class="kula-qris-dialog-detail">
+                    <t t-esc="props.methodName or 'QRIS'"/> settles on the
+                    customer's phone. Confirming records this payment in Odoo;
+                    it does not charge anything.
+                </p>
+                <p class="kula-qris-dialog-timer">
+                    <t t-if="state.seconds > 0">
+                        Cancelling automatically in
+                        <span class="kula-qris-dialog-seconds" t-esc="state.seconds"/>s
+                    </t>
+                    <t t-else="">Cancelling…</t>
+                </p>
+            </div>
+
+            <t t-set-slot="footer">
+                <button class="btn btn-secondary btn-lg" t-on-click="cancel">
+                    Cancel
+                </button>
+                <button class="btn btn-primary btn-lg" t-on-click="confirm">
+                    Yes, record the payment
+                </button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>
