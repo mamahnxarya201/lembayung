@@ -16,6 +16,10 @@
     "auto_install": False,
     "data": [
         "security/kula_security.xml",
+        # The filename is load-bearing: Odoo derives a generic CSV's model from
+        # the file's name, so access rights must be called ir.model.access.csv.
+        # It loads after the groups it grants rights to.
+        "security/ir.model.access.csv",
     ],
     "assets": {
         "web.assets_backend": [

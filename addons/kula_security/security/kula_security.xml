@@ -25,39 +25,51 @@
         <field name="name">Cashier</field>
         <field name="privilege_id" ref="point_of_sale.res_groups_privilege_point_of_sale"/>
         <field name="comment">Runs the register: takes orders and payment. Kiosk only.</field>
-        <field name="implied_ids" eval="[
-            (4, ref('base.group_user')),
-            (4, ref('point_of_sale.group_pos_user')),
-            (4, ref('group_kiosk_only')),
-        ]"/>
+        <field name="implied_ids" eval="[(6, 0, [
+            ref('base.group_user'),
+            ref('group_kiosk_only'),
+        ])]"/>
     </record>
 
     <record id="group_barista" model="res.groups">
         <field name="name">Barista</field>
         <field name="privilege_id" ref="point_of_sale.res_groups_privilege_point_of_sale"/>
         <field name="comment">Makes the orders. Kiosk only, so they can see the queue at the counter. Can be held together with Cashier.</field>
-        <field name="implied_ids" eval="[
-            (4, ref('base.group_user')),
-            (4, ref('point_of_sale.group_pos_user')),
-            (4, ref('group_kiosk_only')),
-        ]"/>
+        <field name="implied_ids" eval="[(6, 0, [
+            ref('base.group_user'),
+            ref('group_kiosk_only'),
+        ])]"/>
     </record>
 
     <!--
         Why the two groups imply what they do, and neither implies the other.
 
-        group_user is required and is NOT implied by group_pos_user (verified:
-        point_of_sale.group_pos_user has no implied_ids at all). Without it the
-        account is not an internal user and cannot load /pos/ui, which is a
-        backend route.
+        group_user is required: /pos/ui is a backend route, so a member without
+        it cannot load the register at all.
 
-        group_pos_user is what carries the register's access rights: creating and
-        writing pos.session, pos.order, pos.payment and friends. It also carries
-        the POS backend menus, which is why kiosk-only cannot be done with groups
-        alone. base.group_user already pulls in implied groups holding dozens of
-        menus, and an Odoo group can grant a menu but never take one away. The
-        guard in kiosk_guard.js is therefore what makes the role kiosk-only in
-        practice.
+        point_of_sale.group_pos_user is deliberately NOT implied. That group is
+        what makes an account a Point of Sale user, and it carries the POS backend
+        menus — Point of Sale, Orders, Sessions, Payments, Payment Methods — so
+        granting it is what would put the backend within reach, guard or no guard.
+        The register's access rights are instead the explicit set in ir.model.access.csv,
+        granted to group_kiosk_only: the same models the till actually touches,
+        owned by this module rather than borrowed from core, so the boundary can
+        be tightened here and core additions to POS User do not silently land on
+        cashiers and baristas.
+
+        That is what makes kiosk-only structural rather than a UI habit: a member
+        has no POS menu because no group of theirs grants one, and no rights
+        outside ir.model.access.csv. The guard in kiosk_guard.js is still what puts them
+        in the register on sign-in, but it is no longer the only thing standing
+        between them and the backend.
+
+        One honest limit of the mechanism: base.group_user is the floor, and it
+        already grants read on a wide band of models (product.supplierinfo among
+        them, verified: base.group_user grants that read on its own). Omitting an
+        ACL row cannot take back what group_user grants; it can only decline to
+        add more. The rows below are therefore the till's additions on top of that
+        floor, and everything they name is something the floor does not already
+        give.
     -->
 
 </odoo>
