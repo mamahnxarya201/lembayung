@@ -8,6 +8,9 @@ container-data/
 # local secrets
 .env
 
+# Amp orb runtime state (services.yaml is tracked, portals/*.json is not)
+.amp/portals/
+
 # python bytecode
 __pycache__/
 

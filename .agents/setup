@@ -1,0 +1,564 @@
+#!/usr/bin/env bash
+#
+# .agents/setup -- prepare a fresh Amp orb for the lembayung Odoo 19 stack.
+#
+# Idempotent: every step skips when its result is already there, so a warm run
+# (a stale snapshot that only needs a repository refresh) costs seconds.
+#
+# What a fresh orb gets:
+#   * podman + podman-compose, the toolchain this repo's docs use
+#   * the rootless-podman plumbing an E2B orb lacks out of the box:
+#       - overlay storage driver (vfs keeps a full copy of every layer and
+#         would balloon the snapshot to ~20 GB for the three images)
+#       - a writable /dev/net/tun (slirp4netns needs it for the rootless
+#         network namespace)
+#       - a systemd *user* session (netavark starts aardvark-dns, the
+#         container DNS server, with `systemd-run --user`; without it the
+#         stack starts but `db` does not resolve inside it)
+#       - a `podman` wrapper that pins XDG_RUNTIME_DIR, because Amp's
+#         non-interactive shells do not set it
+#   * .env, container-data/ (the `init` devenv script's job, inlined here) and
+#     all three container images (odoo, postgres, mailpit)
+#   * the `development-odoo` database with the module set this repo works on
+#     installed and a small POS catalogue in it, so an orb is immediately
+#     usable. Deliberately WITHOUT Odoo's demo data: see create_database.
+#
+# This script never leaves a long-lived process behind. The compose stack is
+# started only to build the database and stopped again before the script exits;
+# `.amp/services.yaml` owns the long-running services.
+set -euo pipefail
+
+REPO_ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# Pinned explicitly: podman-compose otherwise derives the project name from the
+# directory, which in an orb is `repo`, and every container name in the repo
+# docs (lembayung_web_1, lembayung_db_1, lembayung_mail_1) would change.
+COMPOSE_PROJECT=lembayung
+ODOO_DB=development-odoo
+ODOO_ADMIN_LOGIN="aryana@odoo.com"   # the login README and seed/seed.py default to
+ODOO_ADMIN_PASSWORD="admin"          # deliberately weak local dev credential
+
+# The Odoo apps this repo is about -- kiosk/POS, inventory, employees,
+# invoicing. `l10n_id` is the Indonesian localization: it is what makes the
+# company Indonesian and IDR-denominated.
+ODOO_CORE_MODULES="point_of_sale,stock,hr,account,l10n_id"
+# Modules from addons/, bind-mounted at /mnt/extra-addons. These install only
+# *after* configure_localization below: kula_pos_layout sets IDR's rounding to
+# 1, and its <function> searches res.currency for an *active* IDR, which a
+# fresh CLI-created database does not have (no country -> USD company, IDR
+# inactive). Installing it in the same pass as l10n_id makes that a silent
+# no-op, so the two passes are deliberate.
+ODOO_CUSTOM_MODULES="kula_pos_layout"
+ODOO_MODULES="$ODOO_CORE_MODULES,$ODOO_CUSTOM_MODULES"
+
+DB_READY_MARKER="container-data/.db-ready"
+
+run_step() {
+    local label="$1"; shift
+    printf '\n==> %s\n' "$label"
+    local started=$SECONDS
+    "$@"
+    printf '    (%s: %ss)\n' "$label" "$((SECONDS - started))"
+}
+
+# --------------------------------------------------------------------------- #
+# 1. toolchain
+# --------------------------------------------------------------------------- #
+install_toolchain() {
+    # Check the installed packages rather than `command -v`: python3-yaml has
+    # no binary, and apt must not run when a warm snapshot already has them.
+    local pkg missing=0
+    for pkg in podman podman-compose python3-yaml slirp4netns fuse-overlayfs uidmap curl; do
+        dpkg -s "$pkg" >/dev/null 2>&1 || missing=1
+    done
+    if [[ $missing == 0 ]]; then
+        echo "podman, podman-compose, slirp4netns, fuse-overlayfs, uidmap, curl already installed"
+        return 0
+    fi
+    sudo apt-get update -qq
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+        podman podman-compose python3-yaml slirp4netns fuse-overlayfs uidmap curl
+}
+
+# --------------------------------------------------------------------------- #
+# 2. rootless-podman plumbing
+# --------------------------------------------------------------------------- #
+configure_rootless_podman() {
+    # Overlay instead of the vfs default podman picks here.
+    mkdir -p "$HOME/.config/containers"
+    if [[ ! -f $HOME/.config/containers/storage.conf ]]; then
+        printf '[storage]\ndriver = "overlay"\n' >"$HOME/.config/containers/storage.conf"
+        echo "wrote $HOME/.config/containers/storage.conf (driver = overlay)"
+    fi
+
+    # /dev/net/tun is devtmpfs, created 0600 root:root at boot and not part of
+    # any snapshot, so this unit fixes the mode at boot and .agents/resume
+    # repeats it on every wake. Make it writable *now* too: `enable --now`
+    # does not re-run a unit that is already active.
+    if [[ -e /dev/net/tun && ! -w /dev/net/tun ]]; then
+        sudo chmod 0666 /dev/net/tun
+    fi
+    sudo tee /etc/systemd/system/tun-perms.service >/dev/null <<'UNIT'
+[Unit]
+Description=Make /dev/net/tun writable for rootless podman (Amp orb)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'for i in $(seq 1 100); do [ -e /dev/net/tun ] && { chmod 0666 /dev/net/tun; exit 0; }; sleep 0.1; done; echo "tun-perms: /dev/net/tun not present" >&2'
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now tun-perms.service
+
+    # aardvark-dns is started through the systemd user manager.
+    sudo loginctl enable-linger "$(id -un)"
+    sudo systemctl start "user@$(id -u).service"
+
+    # Amp shells are non-interactive and do not set XDG_RUNTIME_DIR, which
+    # `systemd-run --user` needs. Pin it for every podman invocation. Keep the
+    # marker comment: it is how a re-run recognizes the wrapper.
+    if ! grep -q 'Amp orb wrapper' /usr/local/bin/podman 2>/dev/null; then
+        sudo tee /usr/local/bin/podman >/dev/null <<'WRAPPER'
+#!/bin/sh
+# Amp orb wrapper: rootless podman needs a systemd user session, and netavark
+# starts aardvark-dns with `systemd-run --user`, which needs XDG_RUNTIME_DIR.
+# Amp's non-interactive shells do not set it, so pin it here.
+if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -d "/run/user/$(id -u)" ]; then
+    XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export XDG_RUNTIME_DIR
+fi
+exec /usr/bin/podman "$@"
+WRAPPER
+        sudo chmod 0755 /usr/local/bin/podman
+        echo "installed /usr/local/bin/podman wrapper"
+    fi
+
+    # Fail loudly here rather than letting the stack come up without DNS.
+    podman info >/dev/null
+}
+
+# --------------------------------------------------------------------------- #
+# 3. repository state: .env, container-data/, images
+# --------------------------------------------------------------------------- #
+# Every image the compose file references, in file order.
+compose_images() {
+    awk '
+        /^[[:space:]]*image:/ { line=$0
+                                sub(/^[[:space:]]*image:[[:space:]]*/, "", line)
+                                gsub(/["'"'"']/, "", line); print line }
+    ' docker-compose.yaml
+}
+
+compose_web_image() {
+    # Dedicated awk rather than `compose_images | head -1`: under `pipefail` the
+    # SIGPIPE from head makes the pipeline fail non-deterministically.
+    awk '
+        /^[[:space:]]*image:/ { line=$0
+                                sub(/^[[:space:]]*image:[[:space:]]*/, "", line)
+                                gsub(/["'"'"']/, "", line); print line; exit }
+    ' docker-compose.yaml
+}
+
+# What the devenv `init` script does, inlined: the compose file bind-mounts
+# ./container-data and ./addons, both of which must exist and be prepared.
+prepare_repo_state() {
+    [[ -f .env ]] || cp -- .env.example .env
+
+    echo "==> creating container-data/ tree"
+    mkdir -p container-data/odoo-web-data container-data/odoo-db-data container-data/config addons
+    # odoo runs as uid 100, so these dirs must be traversable.
+    chmod 0755 container-data container-data/config addons
+
+    # /etc/odoo is bind-mounted from container-data/config, which MASKS the
+    # odoo.conf baked into the image. Without it the entrypoint dies with
+    # `configparser.NoSectionError: No section: 'options'`, so seed it from the
+    # image. Image pin is read from the compose file, not duplicated.
+    local conf=container-data/config/odoo.conf
+    if [[ -s $conf ]]; then
+        echo "==> $conf already present, leaving it alone"
+        chmod 0644 -- "$conf"
+    else
+        local image tmp
+        image=$(compose_web_image)
+        [[ -n $image ]] || { echo "could not determine the web image from docker-compose.yaml" >&2; return 1; }
+        echo "==> seeding $conf from $image"
+        tmp=$(mktemp)
+        if ! podman run --rm --entrypoint cat "$image" /etc/odoo/odoo.conf >"$tmp" || [[ ! -s $tmp ]]; then
+            rm -f "$tmp"
+            echo "failed to read /etc/odoo/odoo.conf out of $image" >&2
+            return 1
+        fi
+        mv -- "$tmp" "$conf"
+        # mktemp is 0600 and mv preserves it; odoo (uid 100) must read it.
+        chmod 0644 -- "$conf"
+    fi
+
+    # A bind mount does NOT inherit image ownership; has to be chowned inside
+    # the userns (uid 100/gid 101 are subuids, not host users). Idempotent.
+    podman unshare chown -R 100:101 container-data/odoo-web-data
+
+    local image
+    while read -r image; do
+        [[ -n $image ]] || continue
+        if podman image exists "$image"; then
+            echo "image already present: $image"
+        else
+            echo "pulling $image"
+            podman pull "$image"
+        fi
+    done < <(compose_images)
+}
+
+# --------------------------------------------------------------------------- #
+# 4. the development-odoo database
+# --------------------------------------------------------------------------- #
+start_stack() {
+    podman-compose -p "$COMPOSE_PROJECT" up -d db web
+}
+
+stop_stack() {
+    podman-compose -p "$COMPOSE_PROJECT" down
+}
+
+wait_for_odoo() {
+    local i
+    for i in $(seq 1 120); do
+        if [[ $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8069/web/database/selector || true) == 200 ]]; then
+            echo "Odoo answered on :8069 after ${i}s"
+            return 0
+        fi
+        sleep 1
+    done
+    echo "Odoo did not answer on :8069 within 120s" >&2
+    podman logs --tail 30 "${COMPOSE_PROJECT}_web_1" >&2 || true
+    return 1
+}
+
+load_db_env() {
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
+    : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD missing from .env}"
+    POSTGRES_USER="${POSTGRES_USER:-admin}"
+}
+
+# `odoo` in the exec below bypasses the image entrypoint, so it does not get
+# the container's HOST/USER/PASSWORD injected: pass them explicitly. --no-http
+# matters because the running `web` container already holds 8069.
+#
+# "$@" comes FIRST: Odoo only accepts a subcommand (`shell`) as argv[1], so
+# `odoo --no-http ... shell -d db` dies with "unrecognized parameters: shell".
+# Callers therefore pass `-d db -i mods --stop-after-init` for a plain run, or
+# `shell -d db` for an interactive one.
+odoo_cli() {
+    load_db_env
+    podman exec -i "${COMPOSE_PROJECT}_web_1" odoo "$@" \
+        --no-http \
+        --db_host=db --db_user="$POSTGRES_USER" --db_password="$POSTGRES_PASSWORD"
+}
+
+db_module_state() {
+    load_db_env
+    podman exec "${COMPOSE_PROJECT}_db_1" \
+        psql -U "$POSTGRES_USER" -d "$ODOO_DB" -tAc \
+        "select state from ir_module_module where name = '$1'" 2>/dev/null | tr -d '[:space:]'
+}
+
+database_is_prepared() {
+    # Every module in the documented set installed is the definition of done.
+    local module state
+    for module in ${ODOO_MODULES//,/ }; do
+        state=$(db_module_state "$module")
+        [[ $state == installed ]] || return 1
+    done
+    return 0
+}
+
+# An orb whose database predates a module (a real failure mode in the sibling
+# repo: the DB marker was written before a module existed, so it was never
+# installed). The module list above only applies at creation, so this closes
+# the gap idempotently. Expects the stack up.
+ensure_modules() {
+    local missing=() module state core=()
+    for module in ${ODOO_MODULES//,/ }; do
+        state=$(db_module_state "$module")
+        [[ $state == installed ]] || missing+=("$module")
+    done
+
+    for module in "${missing[@]}"; do
+        case ",$ODOO_CUSTOM_MODULES," in
+            *",$module,"*) : ;;                    # applied below, after localization
+            *)             core+=("$module") ;;
+        esac
+    done
+
+    if [[ ${#core[@]} -eq 0 ]]; then
+        echo "    core module set already installed"
+    else
+        module=$(IFS=,; echo "${core[*]}")
+        echo "    installing core: $module"
+        odoo_cli -d "$ODOO_DB" -i "$module" --without-demo=all --stop-after-init
+    fi
+
+    configure_localization
+
+    # `-i` on an already installed module upgrades it, so this both installs a
+    # missing addon and re-applies its data files. Deliberately after
+    # configure_localization: kula_pos_layout's IDR rounding is a silent no-op
+    # if it runs while the company is still an unlocalized USD one.
+    echo "    applying addons/: $ODOO_CUSTOM_MODULES"
+    odoo_cli -d "$ODOO_DB" -i "$ODOO_CUSTOM_MODULES" --without-demo=all --stop-after-init
+
+    assert_idr_is_whole_rupiah
+}
+
+create_database() {
+    # --without-demo is required, not a shortcut: account's res.currency.write()
+    # refuses to *increase* a currency's rounding once it has accounting
+    # entries, and Odoo's demo data creates exactly those in IDR. A demo
+    # database therefore cannot install kula_pos_layout at all. This also
+    # matches the database the repo docs were written against ("My Company",
+    # no POS categories, three hand-made products).
+    odoo_cli -d "$ODOO_DB" -i "$ODOO_CORE_MODULES" --without-demo=all --stop-after-init
+
+    # README and seed/seed.py both assume the admin login is aryana@odoo.com;
+    # a freshly created database has `admin` instead.
+    odoo_cli shell -d "$ODOO_DB" <<PY
+u = env["res.users"].browse(2)
+u.write({"login": "$ODOO_ADMIN_LOGIN"})
+u.partner_id.write({"email": "$ODOO_ADMIN_LOGIN"})
+env.cr.commit()
+print("admin login:", u.login)
+PY
+}
+
+# A database created from the CLI has no country, so Odoo leaves it on USD with
+# IDR inactive -- and then kula_pos_layout's whole point (whole-rupiah prices)
+# is a silent no-op. This is what choosing Indonesia in the database manager
+# does: country, currency, and the Indonesian chart of accounts. Idempotent,
+# and cheap on a database that is already localized.
+configure_localization() {
+    odoo_cli shell -d "$ODOO_DB" <<'PY'
+company = env.company
+idr = env['res.currency'].with_context(active_test=False).search([('name', '=', 'IDR')], limit=1)
+country = env.ref('base.id')
+
+if not idr.active:
+    idr.active = True
+
+# Country and currency in one write, committed before the chart is loaded:
+# base's install_l10n_modules() schedules a chart load on precommit once a
+# company has a country, and account's chart template is denominated in
+# whatever the company currency is when it loads. a fresh database with no
+# country here on USD, which is exactly what we are correcting.
+company.write({'country_id': country.id, 'currency_id': idr.id})
+env.cr.commit()
+
+if not company.chart_template:
+    env['account.chart.template'].try_loading('id', company)
+    env.cr.commit()
+
+print('company:', company.name, '| country:', company.country_id.code,
+      '| currency:', company.currency_id.name, '| chart:', company.chart_template)
+PY
+}
+
+# The one outcome this repository's own module promises, asserted loudly. If
+# IDR is not whole-rupiah here, kula_pos_layout's data file silently did
+# nothing -- which is what happens when it is loaded before the company is
+# localized -- and every screenshot would show cents on an IDR price.
+assert_idr_is_whole_rupiah() {
+    load_db_env
+    local rounding
+    rounding=$(podman exec "${COMPOSE_PROJECT}_db_1" \
+        psql -U "$POSTGRES_USER" -d "$ODOO_DB" -tAc \
+        "select rounding from res_currency where name = 'IDR'" | tr -d '[:space:]')
+    if [[ ${rounding%.*} != 1 ]]; then
+        echo "IDR rounding is ${rounding:-<none>}, expected 1: kula_pos_layout's" \
+             "res_currency_data.xml did not apply" >&2
+        return 1
+    fi
+    echo "    IDR rounding is $rounding -- whole rupiah, as the module intends"
+}
+
+# The repo ships no seed data (seed/seed.py needs suaraloka_security, which is
+# not in this repository), so a fresh demo-less database has an empty product
+# screen and the category dropdown has nothing to show. This creates the
+# minimum docs/pos-layout-backlog.md P1 asks for -- a POS config, the three
+# menu categories and the three products the backlog names -- so the layout can
+# be opened and screenshotted in a fresh orb. Idempotent: keyed on name.
+seed_pos_catalogue() {
+    odoo_cli shell -d "$ODOO_DB" <<'PY'
+PosConfig = env['pos.config']
+config = PosConfig.search([('company_id', '=', env.company.id)], limit=1)
+if not config:
+    config = PosConfig.create({'name': 'Kula Counter'})
+
+categories = {}
+for name in ('Coffee', 'Tea', 'Juice'):
+    category = env['pos.category'].search([('name', '=', name)], limit=1)
+    categories[name] = category or env['pos.category'].create({'name': name})
+
+# Whole-rupiah prices, as kula_pos_layout's IDR rounding produces.
+catalogue = [('Kopi', 10000, 'Coffee'), ('Es Teh', 5000, 'Tea'), ('Sinom', 7000, 'Juice')]
+for name, price, category in catalogue:
+    if env['product.template'].search([('name', '=', name)], limit=1):
+        continue
+    env['product.template'].create({
+        'name': name,
+        'list_price': price,
+        'available_in_pos': True,
+        'pos_categ_ids': [(6, 0, categories[category].ids)],
+    })
+env.cr.commit()
+print('POS config:', config.name,
+      '| categories:', len(env['pos.category'].search([])),
+      '| POS products:', env['product.template'].search_count([('available_in_pos', '=', True)]))
+PY
+}
+
+# Starts the stack -- every step after this one needs it up -- and creates the
+# database if it is not there yet.
+prepare_database() {
+    run_step "start compose stack" start_stack
+    run_step "wait for Odoo" wait_for_odoo
+
+    if [[ -f $DB_READY_MARKER ]]; then
+        echo "database marker present (container-data/.db-ready); skipping creation"
+        return 0
+    fi
+    if database_is_prepared; then
+        echo "database $ODOO_DB is already prepared"
+    else
+        run_step "create $ODOO_DB ($ODOO_CORE_MODULES)" create_database
+    fi
+    touch "$DB_READY_MARKER"
+}
+
+# --------------------------------------------------------------------------- #
+# 5. screenshot font fix: disable NotoColorEmoji
+# --------------------------------------------------------------------------- #
+# NotoColorEmoji.ttf carries glyph coverage for the ASCII digits 0-9, '#', '*'
+# and space (the keycap-emoji base characters). Chromium's fontconfig fallback
+# on this image prefers it for exactly those characters whenever an element's
+# font stack ends in "Noto Color Emoji" -- Odoo's UI stack does -- so every
+# number and word space renders with fullwidth-wide advances and screenshots
+# read like "5 5" and "2 8 , 1 0 0 , 0 0 0". Moving the file out of the fonts
+# tree makes fontconfig fall back to DejaVu Sans, so digits and spaces go
+# tight. Trade-off: emoji render as tofu in *screenshots only*; the owner's own
+# browser is unaffected. The file is kept (not deleted), so this is reversible.
+fix_screenshot_fonts() {
+    local src=/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf
+    local dst=/usr/local/share/NotoColorEmoji.ttf.disabled
+    if [[ -f $src ]]; then
+        sudo mkdir -p "$(dirname "$dst")"
+        sudo mv "$src" "$dst"
+        fc-cache -f >/dev/null 2>&1 || true
+        echo "moved NotoColorEmoji.ttf out of the fonts tree (screenshot digit-spacing fix)"
+    elif [[ -f $dst ]]; then
+        echo "NotoColorEmoji already disabled"
+    else
+        echo "NotoColorEmoji not present on this image; nothing to do"
+    fi
+}
+
+# --------------------------------------------------------------------------- #
+# 6. orb-only notes for agents (login, container names, portal)
+# --------------------------------------------------------------------------- #
+write_orb_notes() {
+    local notes="$HOME/.config/amp/AGENTS.md"
+    local marker="<!-- lembayung-odoo orb notes -->"
+    grep -qF "$marker" "$notes" 2>/dev/null && return 0
+    mkdir -p "$(dirname "$notes")"
+    cat >>"$notes" <<'NOTES'
+
+<!-- lembayung-odoo orb notes -->
+## Odoo compose stack in this orb (lembayung)
+
+- podman + podman-compose are installed, `.env` exists, the odoo/postgres/
+  mailpit images are pulled, and `container-data/` is prepared. The devenv
+  `init` script would be a no-op; devenv/nix itself is NOT installed in orbs
+  (it is a host-side convenience only) and is not needed.
+- Start/stop the stack with `podman-compose -p lembayung up -d` /
+  `... down`. The project name is pinned to `lembayung` so container names
+  match the repo docs: `lembayung_web_1`, `lembayung_db_1`, `lembayung_mail_1`.
+  For browsable URLs run `amp orb services ensure` (Odoo + Mailpit portals).
+- Outgoing mail is captured by Mailpit, never delivered: Odoo sends through
+  `mail:1025`, the Mailpit UI is the second portal (host port 8025), and
+  `curl -s localhost:8025/api/v1/messages` lists what was caught.
+- The database `development-odoo` is pre-created **without Odoo demo data** and
+  with `point_of_sale`, `stock`, `hr`, `account`, `l10n_id` and
+  `kula_pos_layout` installed. Admin: `aryana@odoo.com` / `admin`.
+  Demo data is impossible here, not a preference: `kula_pos_layout` raises
+  IDR's rounding to 1 (whole rupiah) and Odoo refuses that once IDR has
+  accounting entries, which demo data creates. Do **not** try
+  `--with-demo`/`--demo` when installing or updating modules in this database;
+  it will fail on `addons/kula_pos_layout/data/res_currency_data.xml`.
+- The company is localized to Indonesia (`country_id = ID`, currency **IDR**
+  with rounding 1 / 0 decimals, so prices read "Rp 10.000" and never
+  "Rp 10,000.00"). Its chart of accounts is Odoo's **generic_coa**, not
+  `l10n_id`'s Indonesian chart, because `account` loads a chart at install time
+  when the company still has no country; pick the Indonesian fiscal
+  localization from Settings → Accounting if the PPN taxes matter.
+  Order matters: `kula_pos_layout`'s IDR rounding is a *silent no-op* if the
+  module is loaded while the company is still on USD, so `.agents/setup`
+  installs the core modules, localizes the company, and only then applies
+  `addons/`. When you add a data file to `addons/`, run
+  `podman exec -i lembayung_web_1 odoo -i <module> -d development-odoo
+  --without-demo=all --stop-after-init --no-http --db_host=db --db_user=admin
+  --db_password=<from .env>` to apply it.
+- A small POS catalogue is seeded so the product screen is not empty: POS
+  config `Kula Counter`, categories Coffee / Tea / Juice and products
+  Kopi 10 000 / Es Teh 5 000 / Sinom 7 000 (the ones
+  docs/pos-layout-backlog.md P1 names). Re-running `.agents/setup` is
+  idempotent; edit that list in `.agents/setup` if the menu changes.
+- This repo has **no seed data**: `seed/seed.py --apply` cannot run here. It
+  installs `suaraloka_security` and resolves every user role through
+  `suaraloka_security.group_*`, and neither that module nor `suaraloka_cpm`
+  lives in this repository (see README section 3). Run it dry only, or copy
+  the modules in first.
+- Editing `addons/kula_pos_layout/static/**` needs no module update, but the
+  running server caches asset *links* in memory, so the page keeps pointing at
+  the old bundle hash and the change looks like it did nothing. Restart the
+  service, or invalidate in-process via
+  `env['ir.attachment'].regenerate_assets_bundles()` +
+  `env.registry.signal_changes()`. Module Python/XML changes need
+  `-u kula_pos_layout` and a restart.
+- A NEW module directory needs a full restart: the addons path is scanned at
+  process start.
+- Never `podman restart` a compose-managed container; use
+  `podman-compose down` + `up` (crun state gets corrupted otherwise).
+- The POS lands on its own *Unlock Register* screen, which blocks automated
+  checks. See docs/pos-layout-backlog.md ("Getting a POS session in a headless
+  browser") for the recipe.
+- File/content discovery: `rg` is installed and works on this repo; there is no
+  FFF MCP server here (the sibling repo added one, this one has not).
+- Screenshots from headless Chromium render digits/spaces normally because
+  `NotoColorEmoji.ttf` was moved to `/usr/local/share/NotoColorEmoji.ttf.disabled`
+  (its keycap digits/spaces used to hijack Chromium's fallback for stacks
+  ending in "Noto Color Emoji", spacing every number like "5 5"). Emoji in
+  screenshots show as tofu; the owner's own browser is unaffected.
+NOTES
+    echo "appended orb notes to $notes"
+}
+
+# --------------------------------------------------------------------------- #
+# Order matters: the font step runs last so a failure there still leaves this
+# orb with a usable Odoo stack; the failed setup withholds the snapshot, so the
+# next fresh orb retries the whole thing.
+# --------------------------------------------------------------------------- #
+run_step "install toolchain" install_toolchain
+run_step "configure rootless podman (overlay, tun, user session, XDG wrapper)" configure_rootless_podman
+run_step "prepare .env, container-data/ and images" prepare_repo_state
+run_step "prepare the Odoo database" prepare_database
+run_step "install the module set and localize the company" ensure_modules
+run_step "seed the POS catalogue (config, categories, products)" seed_pos_catalogue
+run_step "stop the compose stack" stop_stack
+run_step "disable NotoColorEmoji (screenshot digit-spacing fix)" fix_screenshot_fonts
+run_step "write orb notes for agents" write_orb_notes
+
+printf '\nsetup complete in %ss\n' "$SECONDS"

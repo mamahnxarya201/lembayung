@@ -1,0 +1,24 @@
+# Long-running services for this repository in Amp orbs.
+#
+# `amp orb services ensure` starts the Odoo stack and Mailpit, and exposes both
+# as portals. The project name is pinned to `lembayung` so container names
+# match the repo docs: lembayung_web_1 / lembayung_db_1 / lembayung_mail_1.
+#
+# The two services split the compose file: `odoo` owns db + web, `mail` owns
+# Mailpit, because a portal maps one local port per service. `podman-compose up
+# db web` deliberately excludes the mail service (nothing depends_on it).
+services:
+  odoo:
+    command: podman-compose -p lembayung up db web
+    port: 8069
+    health: /web/database/selector
+    portal:
+      url: /web/login?db=development-odoo
+      title: Odoo (lembayung)
+      description: "development-odoo has demo data plus point_of_sale, stock, hr, account, l10n_id and kula_pos_layout. Admin: aryana@odoo.com / admin."
+  mail:
+    command: podman-compose -p lembayung up mail
+    port: 8025
+    portal:
+      title: Mailpit (captured email)
+      description: "Every email Odoo sends lands here. SMTP is mail:1025 / localhost:1025."

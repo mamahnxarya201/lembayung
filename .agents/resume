@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# .agents/resume -- fast, idempotent repairs after orb activation and each wake.
+#
+# Keep this to a couple of seconds: Amp waits at most 10 seconds before it lets
+# the agent continue. Never install anything here.
+set -euo pipefail
+
+# /dev/net/tun is devtmpfs, recreated 0600 root:root at every boot, and it is
+# not part of a snapshot. Rootless podman's slirp4netns cannot create the
+# network namespace without write access to it.
+if [[ -e /dev/net/tun && ! -w /dev/net/tun ]]; then
+    sudo chmod 0666 /dev/net/tun
+fi
+
+# netavark starts aardvark-dns (container DNS) through the systemd *user*
+# manager, which lingering should have started at boot. Restart it if the
+# runtime directory is missing.
+if [[ ! -d /run/user/$(id -u) ]]; then
+    if ! sudo systemctl start "user@$(id -u).service"; then
+        echo "warning: could not start user@$(id -u).service; container DNS may fail" >&2
+    fi
+fi
