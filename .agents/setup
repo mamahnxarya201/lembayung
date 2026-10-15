@@ -310,8 +310,29 @@ ensure_modules() {
     # missing addon and re-applies its data files. Deliberately after
     # configure_localization: kula_pos_layout's IDR rounding is a silent no-op
     # if it runs while the company is still an unlocalized USD one.
+    # -i and -u are NOT interchangeable here. `-i` only marks a module to install
+    # when it is not installed already, so against an existing database it is a
+    # silent no-op and a changed data file never gets applied. Installed modules
+    # need -u; new ones need -i. Found the hard way: `-i kula_security` on an
+    # installed module printed "Modules loaded" without loading one data file,
+    # and a job position added to data/ simply did not appear.
+    local installed_custom=() new_custom=()
+    for module in ${ODOO_CUSTOM_MODULES//,/ }; do
+        if [[ $(db_module_state "$module") == installed ]]; then
+            installed_custom+=("$module")
+        else
+            new_custom+=("$module")
+        fi
+    done
+    local flags=()
+    if [[ ${#new_custom[@]} -ne 0 ]]; then
+        flags+=(-i "$(IFS=,; echo "${new_custom[*]}")")
+    fi
+    if [[ ${#installed_custom[@]} -ne 0 ]]; then
+        flags+=(-u "$(IFS=,; echo "${installed_custom[*]}")")
+    fi
     echo "    applying addons/: $ODOO_CUSTOM_MODULES"
-    odoo_cli -d "$ODOO_DB" -i "$ODOO_CUSTOM_MODULES" --without-demo=True --stop-after-init
+    odoo_cli -d "$ODOO_DB" "${flags[@]}" --without-demo=True --stop-after-init
 
     assert_idr_is_whole_rupiah
 }
@@ -435,9 +456,10 @@ staff = [
     ("cashier@kula.example", "Kula Cashier", ["kula_security.group_cashier"], "Cashier"),
     ("barista@kula.example", "Kula Barista", ["kula_security.group_barista"], "Barista"),
     # Both roles at once: the roles are additive, so the HR job position has to
-    # name one of them -- a job is single-valued, the roles are not.
+    # name something -- a job is single-valued, the roles are not. Worker is that
+    # something, so this person does not read as one of the two.
     ("both@kula.example", "Kula Both",
-     ["kula_security.group_cashier", "kula_security.group_barista"], "Cashier"),
+     ["kula_security.group_cashier", "kula_security.group_barista"], "Worker"),
 ]
 department = env.ref("kula_security.hr_department_counter", raise_if_not_found=False)
 if not department:
@@ -460,8 +482,12 @@ for login, name, group_xmlids, job_name in staff:
             "user_id": user.id,
             "company_id": env.company.id,
             "department_id": department.id,
-            "job_id": env["hr.job"].search([("name", "=", job_name)], limit=1).id or False,
         })
+    # Reconciled, not just created: an orb that already has these people from an
+    # earlier run picks up a changed job (a job position is not part of the key).
+    target_job = env["hr.job"].search([("name", "=", job_name)], limit=1) if job_name else env["hr.job"]
+    if employee.job_id != target_job or employee.department_id != department:
+        employee.write({"job_id": target_job.id or False, "department_id": department.id})
     if job_name is False:
         owner = employee
 
@@ -569,9 +595,10 @@ write_orb_notes() {
   module is loaded while the company is still on USD, so `.agents/setup`
   installs the core modules, localizes the company, and only then applies
   `addons/`. When you add a data file to `addons/`, run
-  `podman exec -i lembayung_web_1 odoo -i <module> -d development-odoo
+  `podman exec -i lembayung_web_1 odoo -u <module> -d development-odoo
   --without-demo=True --stop-after-init --no-http --db_host=db --db_user=admin
-  --db_password=<from .env>` to apply it.
+  --db_password=<from .env>` to apply it. `-u`, not `-i`: `-i` on an already
+  installed module is a silent no-op, so your change would never appear.
 - A small POS catalogue is seeded so the product screen is not empty: POS
   config `Kula Counter`, categories Coffee / Tea / Juice and products
   Kopi 10 000 / Es Teh 5 000 / Sinom 7 000 (the ones
