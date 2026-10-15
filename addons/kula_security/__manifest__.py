@@ -8,9 +8,11 @@
     "category": "Sales/Point of Sale",
     "license": "LGPL-3",
     "author": "KULA",
-    # point_of_sale for the register and group_pos_user; the role groups also
-    # imply base.group_user, which is core.
-    "depends": ["point_of_sale"],
+    # point_of_sale for the register; hr because the roles are also a place in
+    # the Employees app (a department and two job positions), and because the
+    # Owner group borrows hr's Officer group for sight of the team. The role
+    # groups also imply base.group_user, which is core.
+    "depends": ["point_of_sale", "hr"],
     "application": False,
     "installable": True,
     "auto_install": False,
@@ -20,6 +22,8 @@
         # the file's name, so access rights must be called ir.model.access.csv.
         # It loads after the groups it grants rights to.
         "security/ir.model.access.csv",
+        # The structure the roles occupy in the Employees app.
+        "data/hr_structure.xml",
     ],
     "assets": {
         "web.assets_backend": [

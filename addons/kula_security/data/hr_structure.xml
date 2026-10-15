@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Where the two roles sit in the Employees app.
+
+        One department, "Counter", holding both positions. That is the whole of
+        "Barista and cashier are on the same degree": they are siblings under one
+        department, and neither is above the other.
+
+        Note that jobs carry no hierarchy of their own in Odoo — there is no
+        parent/child between job positions — so putting them in the same
+        department is what expresses "same level". Employees then land at the same
+        depth in the org chart by sharing the department and having the same
+        manager, which is the part people data fills in.
+
+        The department is deliberately left without a manager: assigning one means
+        pointing at an employee record, and employees are data, not module data.
+        The owner sets that (or the team seed in .agents/setup does it for a
+        development orb).
+    -->
+
+    <record id="hr_department_counter" model="hr.department">
+        <field name="name">Counter</field>
+    </record>
+
+    <record id="hr_job_cashier" model="hr.job">
+        <field name="name">Cashier</field>
+        <field name="department_id" ref="hr_department_counter"/>
+        <field name="sequence">10</field>
+    </record>
+
+    <record id="hr_job_barista" model="hr.job">
+        <field name="name">Barista</field>
+        <field name="department_id" ref="hr_department_counter"/>
+        <field name="sequence">10</field>
+    </record>
+
+</odoo>

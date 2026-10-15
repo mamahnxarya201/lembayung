@@ -301,7 +301,7 @@ ensure_modules() {
     else
         module=$(IFS=,; echo "${core[*]}")
         echo "    installing core: $module"
-        odoo_cli -d "$ODOO_DB" -i "$module" --without-demo=all --stop-after-init
+        odoo_cli -d "$ODOO_DB" -i "$module" --without-demo=True --stop-after-init
     fi
 
     configure_localization
@@ -311,7 +311,7 @@ ensure_modules() {
     # configure_localization: kula_pos_layout's IDR rounding is a silent no-op
     # if it runs while the company is still an unlocalized USD one.
     echo "    applying addons/: $ODOO_CUSTOM_MODULES"
-    odoo_cli -d "$ODOO_DB" -i "$ODOO_CUSTOM_MODULES" --without-demo=all --stop-after-init
+    odoo_cli -d "$ODOO_DB" -i "$ODOO_CUSTOM_MODULES" --without-demo=True --stop-after-init
 
     assert_idr_is_whole_rupiah
 }
@@ -323,7 +323,7 @@ create_database() {
     # database therefore cannot install kula_pos_layout at all. This also
     # matches the database the repo docs were written against ("My Company",
     # no POS categories, three hand-made products).
-    odoo_cli -d "$ODOO_DB" -i "$ODOO_CORE_MODULES" --without-demo=all --stop-after-init
+    odoo_cli -d "$ODOO_DB" -i "$ODOO_CORE_MODULES" --without-demo=True --stop-after-init
 
     # README and seed/seed.py both assume the admin login is aryana@odoo.com;
     # a freshly created database has `admin` instead.
@@ -421,6 +421,67 @@ print('POS config:', config.name,
 PY
 }
 
+# The RBAC and the HR structure are only demonstrable with people in them, and
+# people are data while roles are module data -- so this is the orb's job: one
+# user per role plus an owner, an employee for each, and the reporting line that
+# puts cashier and barista at the same depth in the org chart. Idempotent:
+# everything is keyed on the login.
+seed_kiosk_staff() {
+    odoo_cli shell -d "$ODOO_DB" <<'PY'
+password = "kiosk"
+staff = [
+    # login, shared name, role groups, job position
+    ("owner@kula.example", "Kula Owner", ["kula_security.group_owner"], False),
+    ("cashier@kula.example", "Kula Cashier", ["kula_security.group_cashier"], "Cashier"),
+    ("barista@kula.example", "Kula Barista", ["kula_security.group_barista"], "Barista"),
+    # Both roles at once: the roles are additive, so the HR job position has to
+    # name one of them -- a job is single-valued, the roles are not.
+    ("both@kula.example", "Kula Both",
+     ["kula_security.group_cashier", "kula_security.group_barista"], "Cashier"),
+]
+department = env.ref("kula_security.hr_department_counter", raise_if_not_found=False)
+if not department:
+    raise RuntimeError("kula_security is not installed; nothing to seed")
+
+owner = None
+for login, name, group_xmlids, job_name in staff:
+    user = env["res.users"].search([("login", "=", login)], limit=1)
+    if not user:
+        user = env["res.users"].create({
+            "name": name,
+            "login": login,
+            "password": password,
+            "group_ids": [(6, 0, [env.ref(x).id for x in group_xmlids])],
+        })
+    employee = env["hr.employee"].search([("user_id", "=", user.id)], limit=1)
+    if not employee:
+        employee = env["hr.employee"].create({
+            "name": name,
+            "user_id": user.id,
+            "company_id": env.company.id,
+            "department_id": department.id,
+            "job_id": env["hr.job"].search([("name", "=", job_name)], limit=1).id or False,
+        })
+    if job_name is False:
+        owner = employee
+
+# One reporting line for the whole counter: the operators answer to the owner and
+# to nobody else, which is what "same degree" looks like in the chart.
+if owner:
+    for employee in env["hr.employee"].search([("department_id", "=", department.id)]):
+        if employee != owner and employee.parent_id != owner:
+            employee.parent_id = owner.id
+    if department.manager_id != owner:
+        department.manager_id = owner.id
+
+env.cr.commit()
+print("counter staff:", [(e.name, e.job_id.name or "-", e.parent_id.name or "-")
+                         for e in env["hr.employee"].search(
+                             [("department_id", "=", department.id)], order="id")])
+print("counter manager:", department.manager_id.name)
+PY
+}
+
 # Starts the stack -- every step after this one needs it up -- and creates the
 # database if it is not there yet.
 prepare_database() {
@@ -509,7 +570,7 @@ write_orb_notes() {
   installs the core modules, localizes the company, and only then applies
   `addons/`. When you add a data file to `addons/`, run
   `podman exec -i lembayung_web_1 odoo -i <module> -d development-odoo
-  --without-demo=all --stop-after-init --no-http --db_host=db --db_user=admin
+  --without-demo=True --stop-after-init --no-http --db_host=db --db_user=admin
   --db_password=<from .env>` to apply it.
 - A small POS catalogue is seeded so the product screen is not empty: POS
   config `Kula Counter`, categories Coffee / Tea / Juice and products
@@ -573,6 +634,7 @@ run_step "prepare .env, container-data/ and images" prepare_repo_state
 run_step "prepare the Odoo database" prepare_database
 run_step "install the module set and localize the company" ensure_modules
 run_step "seed the POS catalogue (config, categories, products)" seed_pos_catalogue
+run_step "seed the counter staff (role users, employees, reporting line)" seed_kiosk_staff
 run_step "stop the compose stack" stop_stack
 run_step "disable NotoColorEmoji (screenshot digit-spacing fix)" fix_screenshot_fonts
 run_step "write orb notes for agents" write_orb_notes

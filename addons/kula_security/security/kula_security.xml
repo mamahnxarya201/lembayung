@@ -42,6 +42,22 @@
     </record>
 
     <!--
+        Owner: the shop owner, who is not an operator.
+
+        Deliberately NOT kiosk-only, and deliberately not implying Cashier or
+        Barista — the owner is above both, not one of them. What it adds is
+        sight: implying hr's Officer group is what lets a non-admin owner open
+        Employees and see the team and its structure. The admin already sees
+        everything, so this group exists for the other audience the owner named.
+    -->
+    <record id="group_owner" model="res.groups">
+        <field name="name">Owner</field>
+        <field name="privilege_id" ref="hr.res_groups_privilege_employees"/>
+        <field name="comment">Owns the shop. Sees the team and its structure in the Employees app. Not kiosk-only: the owner is not an operator.</field>
+        <field name="implied_ids" eval="[(6, 0, [ref('hr.group_hr_user')])]"/>
+    </record>
+
+    <!--
         Why the two groups imply what they do, and neither implies the other.
 
         group_user is required: /pos/ui is a backend route, so a member without
