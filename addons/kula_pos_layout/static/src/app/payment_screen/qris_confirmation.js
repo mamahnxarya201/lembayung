@@ -12,11 +12,16 @@
  *   - 20 seconds to answer, then the validation is abandoned;
  *   - Cancel abandons it too, and leaves the cashier on the payment screen
  *     with the payment lines intact -- nothing is recorded either way.
+ *
+ * "Abandon" and not "void the order": the spec offers exactly two outcomes,
+ * proceeding or cancelling, and the timeout is described as doing the same
+ * thing as the Cancel button. A timeout that voided the order would destroy
+ * the cashier's work at a moment nobody chose.
  */
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { Dialog } from "@web/core/dialog/dialog";
-import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
+import { ask } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
 
 /** How long the cashier has to confirm. */
@@ -26,9 +31,12 @@ export class QrisConfirmationDialog extends Component {
     static template = "kula_pos_layout.QrisConfirmationDialog";
     static components = { Dialog };
     static props = {
+        // `close` is injected by the dialog service; `confirm` and `cancel` are
+        // added by make_awaitable_dialog's `ask`, which is what turns a button
+        // press into the value the caller is awaiting.
         close: Function,
-        // The amount and method name, so the dialog says what is being
-        // confirmed rather than only asking in the abstract.
+        confirm: Function,
+        cancel: Function,
         methodName: { type: String, optional: true },
     };
 
@@ -38,7 +46,7 @@ export class QrisConfirmationDialog extends Component {
             this.timer = setInterval(() => {
                 this.state.seconds -= 1;
                 if (this.state.seconds <= 0) {
-                    this.cancel();
+                    this.answer(false);
                 }
             }, 1000);
         });
@@ -46,13 +54,26 @@ export class QrisConfirmationDialog extends Component {
     }
 
     confirm() {
-        clearInterval(this.timer);
-        this.props.close(true);
+        this.answer(true);
     }
 
     cancel() {
+        this.answer(false);
+    }
+
+    /**
+     * Resolve before closing. `ask` resolves `false` from the dialog's
+     * onClose, so closing first would answer "cancelled" even when the cashier
+     * pressed the confirm button.
+     */
+    answer(confirmed) {
         clearInterval(this.timer);
-        this.props.close(false);
+        if (confirmed) {
+            this.props.confirm();
+        } else {
+            this.props.cancel();
+        }
+        this.props.close();
     }
 }
 
@@ -68,9 +89,16 @@ patch(PaymentScreen.prototype, {
             (line) => line.payment_method_id.kula_is_qris
         );
         if (qrisLine) {
-            const confirmed = await this.env.services.dialog.add(QrisConfirmationDialog, {
-                methodName: qrisLine.payment_method_id.name,
-            });
+            // `ask`, not `dialog.add`: `add` returns the function that removes
+            // the dialog, so awaiting it yields a truthy value and every answer
+            // would read as "confirmed". `ask` resolves a real boolean, and
+            // resolves false when the dialog is dismissed without an answer.
+            const confirmed = await ask(
+                this.env.services.dialog,
+                { methodName: qrisLine.payment_method_id.name },
+                {},
+                QrisConfirmationDialog
+            );
             if (!confirmed) {
                 return;
             }

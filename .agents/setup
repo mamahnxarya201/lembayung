@@ -532,6 +532,22 @@ write_orb_notes() {
   process start.
 - Never `podman restart` a compose-managed container; use
   `podman-compose down` + `up` (crun state gets corrupted otherwise).
+- **`amp orb service restart odoo` does not recreate the containers.** The
+  supervisor reattaches to the containers already running, so the odoo process
+  keeps the Python it loaded at boot. Any Python or XML change (a new field, a
+  new model, a new manifest entry) stays invisible until you
+  `podman-compose -p lembayung down` and bring the stack back up. Static assets
+  are different -- those are read off disk, so only the asset *links* need a
+  fresh process (see the module-update note above). Symptom to recognize: a
+  value your new field should carry is simply absent in the browser while a
+  fresh `odoo shell` prints it correctly.
+- **Never write `pos.session.state` directly.** A session closed that way has
+  no `stop_at`, and core's `pos.config._compute_last_session` reads the last
+  closed session and calls `.astimezone()` on that empty value. The exception
+  kills `pos.session.load_data`, the POS client is handed no `pos.config` at
+  all, and the register dies on startup with the misleading
+  `Cannot read properties of undefined (reading 'currency_id')`. Use the close
+  action, or unlink the throwaway session.
 - The POS lands on its own *Unlock Register* screen, which blocks automated
   checks. See docs/pos-layout-backlog.md ("Getting a POS session in a headless
   browser") for the recipe.
