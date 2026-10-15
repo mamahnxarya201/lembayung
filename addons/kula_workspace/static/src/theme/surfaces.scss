@@ -1,0 +1,114 @@
+// Resource surfaces (phase 6b): the kanbans and lists of the backend.
+//
+// Phase 6a did the chrome; this is the content. The treatment is the one the
+// project board has had since its first skin: light columns with a 1px border,
+// white cards with a tight radius and a hover lift, a squared count badge, and
+// a flat table with an uppercase header.
+//
+// Written once, generically (`.o_kanban_view` / `.o_list_view` under
+// `body.o_web_client`), because every backend kanban and list shares those
+// classes -- the project board's own copy moved here (board.scss keeps only
+// what is board-specific: the stacking rhythm of a column and its New button).
+//
+// Two things NOT copied from the board, because they only hold there:
+//   - the card margin: a grouped board stacks cards in a column, while a grid
+//     kanban (Employees, Contacts) lays them out with flex gaps, and a margin
+//     override would collapse the grid;
+//   - the column margin: same reason, the grid has no columns at all.
+//
+// Palette: the same Atlassian Design System tokens as the rest.
+
+$o-sw-brand: #0c66e4; // Blue 700
+$o-sw-brand-subtle: #e9f2ff; // Blue 100
+$o-sw-text: #172b4d;
+$o-sw-text-subtle: #44546f;
+$o-sw-border: #dcdfe4;
+$o-sw-row-line: #f1f2f4;
+$o-sw-surface: #ffffff;
+$o-sw-surface-hover: #f1f2f4;
+$o-sw-surface-sunken: #f7f8f9;
+$o-sw-radius: 4px;
+$o-sw-radius-sm: 3px;
+$o-sw-card-shadow: rgba(9, 30, 66, 0.08);
+$o-sw-card-shadow-hover: rgba(9, 30, 66, 0.16);
+
+body.o_web_client {
+    // -----------------------------------------------------------------------
+    // Kanban
+    // -----------------------------------------------------------------------
+
+    .o_kanban_view {
+        // A grouped kanban's column is a light container.
+        .o_kanban_group {
+            border: 1px solid $o-sw-border;
+            border-radius: $o-sw-radius;
+            background: $o-sw-surface-sunken;
+        }
+
+        .o_column_title {
+            color: $o-sw-text;
+            font-weight: 600;
+        }
+
+        // The per-column count, as a small squared badge.
+        .o_kanban_counter .o_animated_number {
+            min-width: 1.5rem;
+            padding: 0 0.4rem;
+            border-radius: $o-sw-radius-sm;
+            background: $o-sw-surface;
+            color: $o-sw-text-subtle;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+
+        // Cards are separate surfaces. Margins stay Odoo's own.
+        .o_kanban_record:not(.o_kanban_ghost) {
+            border: 1px solid $o-sw-border;
+            border-radius: $o-sw-radius-sm;
+            background: $o-sw-surface;
+            box-shadow: 0 1px 2px $o-sw-card-shadow;
+            transition: box-shadow 0.12s ease, border-color 0.12s ease;
+
+            &:hover {
+                border-color: $o-sw-brand;
+                box-shadow: 0 3px 10px $o-sw-card-shadow-hover;
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // List
+    // -----------------------------------------------------------------------
+
+    .o_list_view .o_list_table {
+        // Bootstrap paints cells with `background-color` plus an accent
+        // `box-shadow`, so the table's own variables are the lever.
+        --table-striped-bg: transparent;
+        --table-hover-bg: #{$o-sw-surface-sunken};
+
+        // The workspace's own table, one size up: an uppercase header on a
+        // sunken strip, flat rows separated by hairlines.
+        thead th {
+            padding: 0.45rem 0.75rem;
+            border-bottom: 1px solid $o-sw-border;
+            background: $o-sw-surface-hover;
+            color: $o-sw-text-subtle;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        tbody td {
+            border-bottom: 1px solid $o-sw-row-line;
+            color: $o-sw-text;
+        }
+
+        // A selected row reads as selected (blue tint), not as hovered.
+        tbody tr.o_data_row_selected > td,
+        tbody tr.o_data_row.o_row_selected > td {
+            background-color: $o-sw-brand-subtle;
+        }
+    }
+}

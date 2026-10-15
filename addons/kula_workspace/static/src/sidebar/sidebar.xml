@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <!--
+        Left navigation sidebar.
+
+        The tree is built from Odoo's own menu service (getApps /
+        getMenuAsTree), not from a hand-written list of links, so it follows
+        installed modules, user groups and translations automatically. The
+        curated allow-list in sidebar.js only decides which apps are shown.
+    -->
+    <t t-name="kula_workspace.Sidebar">
+        <aside class="o_kula_sidebar">
+            <nav class="o_sw_sidebar_nav" t-ref="navRef">
+                <ul class="o_sw_app_list">
+                    <SidebarNode t-foreach="apps" t-as="app" t-key="app.id"
+                                 node="app"
+                                 depth="0"
+                                 iconSrc="app.webIconData"
+                                 iconGlyph="appIconGlyph(app)"
+                                 version="state.expansionVersion"
+                                 activeMenuId="state.activeMenuId"
+                                 isExpanded="isExpanded"
+                                 onSelect="onNodeSelect"
+                                 onToggle="onNodeToggle"/>
+                </ul>
+            </nav>
+
+            <!-- Sits inside the aside (fixed, z-index -1) so it covers the
+                 page but stays under the panel. -->
+            <div t-if="state.mobileOpen" class="o_sw_backdrop"
+                 t-on-click="() => this.closeMobile()"/>
+        </aside>
+    </t>
+
+    <t t-name="kula_workspace.SidebarNode">
+        <li class="o_sw_node" t-att-class="{ 'o_sw_node_active': active }">
+            <div class="o_sw_node_row"
+                 t-att-class="'o_sw_node_depth_' + props.depth"
+                 t-on-click="() => props.onSelect(props.node)">
+                <span t-if="hasChildren" class="o_sw_node_caret"
+                      t-on-click.stop="() => props.onToggle(props.node)">
+                    <i class="fa" t-att-class="expanded ? 'fa-caret-down' : 'fa-caret-right'"/>
+                </span>
+                <span t-else="" class="o_sw_node_caret o_sw_node_caret_empty"/>
+
+                <!-- Apps show their own artwork; a child row shows a glyph on
+                     a tinted tile: the same tile, an icon of its own. -->
+                <span t-if="props.depth === 0 and props.iconGlyph" class="o_sw_app_icon o_sw_app_icon_workspace">
+                    <i class="fa" t-att-class="props.iconGlyph"/>
+                </span>
+                <img t-elif="props.depth === 0 and props.iconSrc" class="o_sw_app_icon" t-att-src="props.iconSrc" alt=""/>
+                <span t-else="" class="o_sw_child_icon"
+                      t-att-class="'o_sw_tone_' + childIcon.tone + (childIcon.letter ? ' o_sw_child_icon_letter' : '')">
+                    <t t-if="childIcon.letter" t-esc="childIcon.letter"/>
+                    <i t-else="" class="fa" t-att-class="childIcon.glyph"/>
+                </span>
+
+                <!-- The label scrolls itself when the panel cannot fit it
+                     (SidebarNode.measureLabel) and the tooltip carries the full
+                     text on hover: data-tooltip is Odoo's own popup, styled
+                     like the rest of the chrome, and it cannot be clipped by
+                     the scrolling nav the way an absolutely positioned one
+                     would. -->
+                <span class="o_sw_node_label" t-ref="labelRef"
+                      t-att-data-tooltip="props.node.name">
+                    <span class="o_sw_node_text" t-esc="props.node.name"/>
+                </span>
+            </div>
+            <SidebarChildren t-if="expanded"
+                             nodes="props.node.childrenTree"
+                             depth="props.depth + 1"
+                             version="props.version"
+                             activeMenuId="props.activeMenuId"
+                             isExpanded="props.isExpanded"
+                             onSelect="props.onSelect"
+                             onToggle="props.onToggle"/>
+        </li>
+    </t>
+
+    <t t-name="kula_workspace.SidebarChildren">
+        <ul class="o_sw_children">
+            <SidebarNode t-foreach="props.nodes" t-as="node" t-key="node.id"
+                         node="node"
+                         depth="props.depth"
+                         version="props.version"
+                         activeMenuId="props.activeMenuId"
+                         isExpanded="props.isExpanded"
+                         onSelect="props.onSelect"
+                         onToggle="props.onToggle"/>
+        </ul>
+    </t>
+
+    <!--
+        Injected as a sibling of the top navbar, inside the block that the web
+        client already hides in fullscreen mode. The component is registered on
+        WebClient in sidebar.js; an OWL template cannot use a component the
+        host component does not know about.
+    -->
+    <t t-name="kula_workspace.WebClientSidebar"
+       t-inherit="web.WebClient"
+       t-inherit-mode="extension">
+        <xpath expr="//NavBar" position="before">
+            <KulaSidebar/>
+        </xpath>
+    </t>
+
+</templates>

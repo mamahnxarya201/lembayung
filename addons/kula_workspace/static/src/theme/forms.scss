@@ -1,0 +1,181 @@
+// Form surfaces (phase 6c): the last stock Odoo surface.
+//
+// 6a did the chrome (control panel, buttons, inputs), 6b the kanbans and
+// lists. This is the form: the sheet, the status bar's stages, the notebook
+// tabs, the chatter and the stat buttons. After this, every screen the
+// workspace reaches is on one palette.
+//
+// Same rule as the other two files: `body.o_web_client` only, literal ADS
+// tokens, and no layout of its own -- Odoo's geometry (the sheet's width, the
+// status bar's arrow shape, the notebook's white-merge tab) stays as it is.
+// Only colours, borders and radii move.
+//
+// Palette: the same Atlassian Design System tokens as the rest.
+
+$o-sw-brand: #0c66e4; // Blue 700
+$o-sw-brand-strong: #0055cc; // Blue 800
+$o-sw-brand-subtle: #e9f2ff; // Blue 100
+$o-sw-brand-subtle-border: #cce0ff; // Blue 200
+$o-sw-text: #172b4d;
+$o-sw-text-subtle: #44546f;
+$o-sw-border: #dcdfe4;
+$o-sw-row-line: #f1f2f4;
+$o-sw-surface: #ffffff;
+$o-sw-surface-hover: #f1f2f4;
+$o-sw-surface-sunken: #f7f8f9;
+$o-sw-radius: 4px;
+$o-sw-radius-sm: 3px;
+
+body.o_web_client {
+    // -----------------------------------------------------------------------
+    // The sheet
+    // -----------------------------------------------------------------------
+
+    .o_form_sheet_bg {
+        background: $o-sw-surface-sunken;
+    }
+
+    .o_form_sheet {
+        border: 1px solid $o-sw-border;
+        border-radius: $o-sw-radius;
+        background: $o-sw-surface;
+    }
+
+    .o_form_label {
+        color: $o-sw-text-subtle;
+        font-weight: 500;
+    }
+
+    // -----------------------------------------------------------------------
+    // Status bar: the stages. The current one is the blue chip; the arrows
+    // keep Odoo's shape (padding + the notched radius), so only colours move.
+    // -----------------------------------------------------------------------
+
+    .o_form_statusbar {
+        border-bottom: 1px solid $o-sw-border;
+
+        .o_arrow_button {
+            color: $o-sw-text-subtle;
+
+            &:hover,
+            &:focus {
+                background-color: $o-sw-surface-hover;
+                color: $o-sw-text;
+            }
+        }
+
+        .o_arrow_button_current,
+        .o_arrow_button.btn-primary {
+            background-color: $o-sw-brand-subtle;
+            border-color: $o-sw-brand-subtle-border;
+            color: $o-sw-brand-strong;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Notebook: the active tab keeps its white merge with the sheet, the
+    // others read as quiet labels rather than links.
+    // -----------------------------------------------------------------------
+
+    .o_notebook {
+        .nav-tabs {
+            border-bottom-color: $o-sw-border;
+        }
+
+        .nav-link {
+            border-radius: $o-sw-radius-sm $o-sw-radius-sm 0 0;
+            color: $o-sw-text-subtle;
+            font-weight: 500;
+
+            &:hover {
+                border-color: transparent transparent $o-sw-border;
+                color: $o-sw-text;
+            }
+
+            &.active {
+                border-color: $o-sw-border $o-sw-border $o-sw-surface;
+                color: $o-sw-text;
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Chatter
+    // -----------------------------------------------------------------------
+
+    .o-mail-Chatter,
+    .o-mail-ChatterContainer,
+    .o-mail-Message {
+        background: $o-sw-surface-sunken;
+    }
+
+    .o-mail-Chatter-topbar,
+    .o-mail-Chatter-content {
+        border-color: $o-sw-border;
+    }
+
+    // The "Planned Activities" / date separators: a hairline with a quiet
+    // label, not a black line with a bold one.
+    .o-mail-Chatter .o-mail-Message-date,
+    .o-mail-Chatter .o-mail-DateSeparator {
+        border-color: $o-sw-border;
+        color: $o-sw-text-subtle;
+        font-weight: 500;
+    }
+
+    .o-mail-Activity {
+        color: $o-sw-text;
+    }
+
+    .o-mail-Composer {
+        border: 1px solid $o-sw-border;
+        border-radius: $o-sw-radius-sm;
+        background: $o-sw-surface;
+    }
+
+    // -----------------------------------------------------------------------
+    // Stat buttons (the count boxes on a form's top right)
+    // -----------------------------------------------------------------------
+
+    .oe_stat_button {
+        border: 1px solid $o-sw-border;
+        border-radius: $o-sw-radius-sm;
+        background: $o-sw-surface;
+        color: $o-sw-text;
+        transition: border-color 0.12s ease, box-shadow 0.12s ease;
+
+        &:hover,
+        &:focus {
+            border-color: $o-sw-brand;
+            background: $o-sw-surface;
+            color: $o-sw-text;
+        }
+
+        .o_stat_value {
+            color: $o-sw-text;
+            font-weight: 600;
+        }
+
+        .o_stat_text,
+        .o_button_icon {
+            color: $o-sw-text-subtle;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Odds and ends the form shows
+    // -----------------------------------------------------------------------
+
+    // Tags and selection badges: a quiet tint instead of a saturated pill.
+    .o_field_widget.o_field_tags .badge,
+    .o_field_widget.o_field_many2many_tags .badge {
+        border-radius: $o-sw-radius-sm;
+        font-weight: 500;
+    }
+
+    // The "required" asterisk and the field's help text.
+    .o_form_view .text-muted,
+    .o_form_view small.text-muted {
+        color: $o-sw-text-subtle !important;
+    }
+}

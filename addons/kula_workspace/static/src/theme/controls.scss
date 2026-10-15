@@ -1,0 +1,227 @@
+// Stock Odoo chrome, wearing the workspace's palette (phase 6a).
+//
+// Scope: the **control panel, buttons and inputs** of the backend -- the pieces
+// that made every screen read as "Odoo with a nice sidebar". Before this, the
+// New button, the search facets, the active view switcher and every link were
+// Odoo mauve (#71639E), secondary buttons and borders bootstrap grey
+// (#DEE2E6), radii 4px everywhere.
+//
+// Odoo 19 compiles bootstrap 5.3 with **custom properties**, so most of the
+// recolouring is done by overriding variables instead of restating every
+// declaration:
+//   - `:root` carries the palette (--primary, --link-color, --border-color,
+//     --focus-ring-color, ...) which the facets, icons and links read;
+//   - each button variant bakes its own `--btn-*` set (precomputed hexes, so
+//     --primary alone would not move it), which we restate with our tokens.
+// Only the shape is left as real rules: radii, the control panel's border, the
+// search bar's border and focus ring, and the button group's square corners.
+//
+// All selectors are scoped to `body.o_web_client`, and this file ships in
+// `web.assets_backend`, so the login page, the website and the portal are
+// untouched. Surfaces (list tables, kanbans, forms) are deliberately NOT
+// styled here: they are phase 6b/6c.
+//
+// Palette: the same Atlassian Design System tokens as sidebar.scss /
+// workspace_action.scss. Literal hexes, not theme variables: this build defines
+// no --o-* palette of its own. Radii stay 3px, the workspace's own scale.
+
+$o-sw-brand: #0c66e4; // Blue 700
+$o-sw-brand-strong: #0055cc; // Blue 800
+$o-sw-brand-subtle: #e9f2ff; // Blue 100
+$o-sw-brand-subtle-border: #cce0ff; // Blue 200
+$o-sw-text: #172b4d;
+$o-sw-text-subtle: #44546f;
+$o-sw-border: #dcdfe4;
+$o-sw-surface: #ffffff;
+$o-sw-surface-hover: #f1f2f4;
+$o-sw-surface-sunken: #f7f8f9;
+$o-sw-radius: 3px;
+
+// ---------------------------------------------------------------------------
+// The palette, as variables
+// ---------------------------------------------------------------------------
+
+:root {
+    // `--primary` is what the search facets, the focus rings and the mauve
+    // icons in the search menu read.
+    --primary: #{$o-sw-brand};
+    --primary-rgb: 12, 102, 228;
+    --primary-text-emphasis: #{$o-sw-brand-strong};
+    --primary-bg-subtle: #{$o-sw-brand-subtle};
+    --primary-border-subtle: #{$o-sw-brand-subtle-border};
+
+    --link-color: #{$o-sw-brand-strong};
+    --link-color-rgb: 0, 85, 204;
+    --link-hover-color: #{$o-sw-brand};
+    --link-hover-color-rgb: 12, 102, 228;
+
+    --border-color: #{$o-sw-border};
+    --focus-ring-color: #{rgba($o-sw-brand-subtle-border, 0.5)};
+    --body-color: #{$o-sw-text};
+}
+
+body.o_web_client {
+    // -----------------------------------------------------------------------
+    // Buttons: restate the baked `--btn-*` set of each variant
+    // -----------------------------------------------------------------------
+
+    .btn-primary {
+        --btn-color: #fff;
+        --btn-bg: #{$o-sw-brand};
+        --btn-border-color: #{$o-sw-brand};
+        --btn-hover-color: #fff;
+        --btn-hover-bg: #{$o-sw-brand-strong};
+        --btn-hover-border-color: #{$o-sw-brand-strong};
+        --btn-active-color: #{$o-sw-brand-strong};
+        --btn-active-bg: #{$o-sw-brand-subtle};
+        --btn-active-border-color: #{$o-sw-brand};
+        --btn-disabled-color: #fff;
+        --btn-disabled-bg: #{$o-sw-brand-subtle-border};
+        --btn-disabled-border-color: #{$o-sw-brand-subtle-border};
+        --btn-focus-shadow-rgb: 204, 224, 255;
+    }
+
+    // Jira's secondary button: a white surface with a border, not a grey fill.
+    .btn-secondary,
+    .btn-light {
+        --btn-color: #{$o-sw-text};
+        --btn-bg: #{$o-sw-surface};
+        --btn-border-color: #{$o-sw-border};
+        --btn-hover-color: #{$o-sw-text};
+        --btn-hover-bg: #{$o-sw-surface-hover};
+        --btn-hover-border-color: #{$o-sw-border};
+        --btn-active-color: #{$o-sw-brand-strong};
+        --btn-active-bg: #{$o-sw-brand-subtle};
+        --btn-active-border-color: #{$o-sw-brand-subtle-border};
+        --btn-disabled-color: #{$o-sw-text-subtle};
+        --btn-disabled-bg: #{$o-sw-surface-sunken};
+        --btn-disabled-border-color: #{$o-sw-border};
+        --btn-focus-shadow-rgb: 204, 224, 255;
+    }
+
+    // -----------------------------------------------------------------------
+    // Shape
+    // -----------------------------------------------------------------------
+
+    .btn,
+    .o_input,
+    .form-control,
+    .form-select,
+    .dropdown-menu,
+    .modal-content,
+    .o_dialog {
+        border-radius: $o-sw-radius;
+    }
+
+    // A button group keeps square inner corners whatever the radius is.
+    .btn-group {
+        > .btn:not(:first-child) {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
+        > .btn:not(:last-child) {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+    }
+
+    // The view switcher reads as one control: its selected view is the blue
+    // chip (from the secondary button's active state above), its idle views
+    // stay quiet.
+    .o_cp_switch_buttons .o_switch_view:not(.active) {
+        color: $o-sw-text-subtle;
+
+        &:hover {
+            color: $o-sw-text;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Control panel and search bar
+    // -----------------------------------------------------------------------
+
+    .o_control_panel {
+        background: $o-sw-surface;
+        border-bottom: 1px solid $o-sw-border;
+    }
+
+    .o_breadcrumb {
+        color: $o-sw-text-subtle;
+        font-size: 0.875rem;
+
+        .o_last_breadcrumb_item,
+        .active {
+            color: $o-sw-text;
+            font-weight: 600;
+        }
+    }
+
+    .o_cp_searchview .o_searchview {
+        background: $o-sw-surface;
+        border: 1px solid $o-sw-border;
+        border-radius: $o-sw-radius;
+
+        &:focus-within {
+            border-color: $o-sw-brand;
+            box-shadow: 0 0 0 1px $o-sw-brand;
+        }
+
+        // The bar owns the border: the input inside it must not draw a second
+        // one (the `.o_input` rule below would otherwise give it its own).
+        .o_input,
+        .o_searchview_input {
+            border: 0;
+            box-shadow: none;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Inputs
+    // -----------------------------------------------------------------------
+
+    .o_input,
+    .form-control,
+    .form-select {
+        background-color: $o-sw-surface;
+        color: $o-sw-text;
+
+        &::placeholder {
+            color: #{$o-sw-text-subtle};
+        }
+
+        &:focus {
+            border-color: $o-sw-brand;
+            box-shadow: 0 0 0 1px $o-sw-brand;
+        }
+
+        &:disabled,
+        &[readonly] {
+            background-color: $o-sw-surface-sunken;
+            color: $o-sw-text-subtle;
+        }
+    }
+
+    .o_field_widget {
+        input:not([type="checkbox"]):not([type="radio"]),
+        textarea,
+        select {
+            &:focus {
+                border-color: $o-sw-brand;
+                box-shadow: 0 0 0 1px $o-sw-brand;
+            }
+        }
+    }
+
+    .form-check-input {
+        &:checked {
+            background-color: $o-sw-brand;
+            border-color: $o-sw-brand;
+        }
+
+        &:focus {
+            border-color: $o-sw-brand;
+            box-shadow: 0 0 0 2px $o-sw-brand-subtle-border;
+        }
+    }
+}

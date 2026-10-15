@@ -1,0 +1,54 @@
+// The sign-in page keeps Odoo's own layout and only changes colour.
+//
+// Same grey page, same white card, same shapes as stock Odoo; what changes is
+// the palette, so signing in reads as the same product as the Jira-blue app
+// behind it instead of stock Odoo's plum button and plum links (owner: "i like
+// the default odoo but just change the color into our pallete. so keeping the
+// background okay?").
+//
+// Same Atlassian tokens the backend uses (see sidebar/sidebar.scss for the list,
+// theme/controls.scss for the chrome): Blue 700 #0C66E4 fills, Blue 800 #0055CC
+// text and links, Blue 900 #09326C for the hover, #DCDFE4 borders. The frontend
+// bundle is built separately, so they are repeated rather than imported.
+//
+// Scoped to the login card, so nothing else in the frontend bundle is touched.
+
+$o-sw-brand: #0c66e4; // Blue 700 -- fills, borders, focus
+$o-sw-brand-strong: #0055cc; // Blue 800 -- text and links
+$o-sw-deep: #09326c; // Blue 900
+$o-sw-border: #dcdfe4;
+
+.o_database_list {
+    .form-control {
+        border-color: $o-sw-border;
+
+        &:focus {
+            border-color: $o-sw-brand;
+            box-shadow: 0 0 0 2px rgba(12, 102, 228, 0.25);
+        }
+    }
+
+    .btn-primary {
+        background-color: $o-sw-brand;
+        border-color: $o-sw-brand;
+
+        &:hover,
+        &:focus,
+        &:active {
+            background-color: $o-sw-brand-strong;
+            border-color: $o-sw-brand-strong;
+        }
+    }
+
+    // "Reset Password", "Don't have an account?", the footer's links: Blue 800
+    // is the readable end of the brand colour.
+    a,
+    .btn-link {
+        color: $o-sw-brand-strong;
+
+        &:hover,
+        &:focus {
+            color: $o-sw-deep;
+        }
+    }
+}

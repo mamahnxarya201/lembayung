@@ -1,0 +1,327 @@
+// KULA Workspace sidebar.
+//
+// Palette: Atlassian Design System tokens (the ones Jira uses) -- white
+// surface, #172B4D primary text, #44546F subtle text, Blue 700 #0C66E4 fills,
+// Blue 800 #0055CC text/links, Blue 100 #E9F2FF selected row, Neutral 300
+// #DCDFE4 borders. Blue 700 is a fill colour -- text and links use Blue 800,
+// which has the contrast for white. No theme variables are used because this
+// build defines no --o-* palette (see workspace_action.scss for that rule).
+//
+// Shapes, all driven by body classes the component maintains. The controls
+// live in the top bar (see sidebar_state.js); this file only reacts:
+//   - pinned   : open and the page reserves its width -- always, there is no
+//                floating shape any more (owner: "make it always pinned")
+//   - closed   : slid out of the way (the top bar's toggle)
+//   - drawer   : over the page on phones, opened by the same toggle
+
+$o-sw-width: 260px;
+$o-sw-navbar-height: 46px; // the navbar's height; the sidebar sits below it
+
+$o-sw-surface: #ffffff;
+$o-sw-surface-hover: #f1f2f4;
+$o-sw-border: #dcdfe4;
+$o-sw-text: #172b4d;
+$o-sw-text-subtle: #44546f;
+$o-sw-selected-bg: #e9f2ff; // Blue 100
+$o-sw-selected-text: #0055cc; // Blue 800
+$o-sw-brand: #0c66e4; // Blue 700 -- fills, borders, icons
+$o-sw-scrim: rgba(9, 30, 66, 0.45);
+$o-sw-shadow: rgba(9, 30, 66, 0.25);
+// The module icon's own gradient (static/description/icon.png): the fallback
+// tile for the Workspace row wears the same artwork.
+$o-sw-gradient: linear-gradient(135deg, #4c9aff 0%, #1868db 55%, #6554c0 100%);
+
+// A glyph's ink sits a touch above the centre of Font Awesome's em box, and a
+// capital letter's ink above the centre of its line box, so a tile centred by
+// flex reads high (measured at 4x: up to 1.5px on the 18px tile). The tiles take
+// half of this as top padding instead of centring exactly, which pushes the ink
+// down by half the padding. Padding, not a transform: the tile keeps its 18px
+// (border-box) and its place in the row, which centres the tile itself.
+$o-sw-icon-nudge: 1.5px;
+
+// ---------------------------------------------------------------------------
+// Shell
+// ---------------------------------------------------------------------------
+
+.o_kula_sidebar {
+    position: fixed;
+    top: $o-sw-navbar-height;
+    bottom: 0;
+    left: 0;
+    z-index: 1020;
+    display: flex;
+    flex-direction: column;
+    width: $o-sw-width;
+    background: $o-sw-surface;
+    border-right: 1px solid $o-sw-border;
+    color: $o-sw-text;
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.o_sw_backdrop {
+    display: none;
+}
+
+// ---------------------------------------------------------------------------
+// Tree
+// ---------------------------------------------------------------------------
+
+.o_sw_sidebar_nav {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.4rem 0;
+}
+
+.o_sw_app_list,
+.o_sw_children {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.o_sw_node_row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 2px 8px;
+    padding: 0.35rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+
+    &:hover {
+        background: $o-sw-surface-hover;
+    }
+}
+
+.o_sw_node_label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    .o_sw_node_text {
+        display: inline-block;
+        white-space: nowrap;
+    }
+
+    // A label too long for the panel scrolls itself, with a pause at both ends.
+    // CSS cannot know the overflow, so the row measures it and hands the
+    // distance over in --o-sw-marquee-distance (see SidebarNode.measureLabel);
+    // the duration grows with it, so a long name does not scroll faster than a
+    // short one. `alternate` is what brings it back.
+    &.o_sw_scrolls .o_sw_node_text {
+        animation: o-sw-marquee var(--o-sw-marquee-duration, 6s) ease-in-out infinite alternate;
+    }
+}
+
+@keyframes o-sw-marquee {
+    0%,
+    18% {
+        transform: translateX(0);
+    }
+
+    82%,
+    100% {
+        transform: translateX(var(--o-sw-marquee-distance, 0));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .o_sw_node_label.o_sw_scrolls .o_sw_node_text {
+        animation: none;
+    }
+}
+
+// Depth indentation. Child rows carry an icon of their own now, so a step only
+// adds the extra offset on top of the icon column it introduces -- the tree
+// still reads as a tree without marching the labels off a 260px panel.
+.o_sw_node_depth_0 {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.o_sw_node_depth_1 {
+    padding-left: 1.35rem;
+    font-size: 0.875rem;
+}
+
+.o_sw_node_depth_2 {
+    padding-left: 2.5rem;
+    font-size: 0.85rem;
+}
+
+.o_sw_node_depth_3 {
+    padding-left: 3.65rem;
+    font-size: 0.85rem;
+}
+
+.o_sw_node_caret {
+    flex: 0 0 auto;
+    width: 0.9rem;
+    text-align: center;
+    font-size: 0.7rem;
+    color: $o-sw-text-subtle;
+}
+
+.o_sw_node_caret_empty {
+    visibility: hidden;
+}
+
+.o_sw_app_icon {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    object-fit: contain;
+    box-shadow: inset 0 0 0 1px rgba(9, 30, 66, 0.06);
+}
+
+.o_sw_app_icon_workspace {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: $o-sw-icon-nudge;
+    background: $o-sw-gradient;
+    color: #fff;
+    font-size: 0.65rem;
+    box-shadow: none;
+}
+
+// Child rows: a glyph on a colour-filled tile. Same tile as the app icons
+// (18px, radius 4) but an icon of its own, because a child is not an app and a
+// copy of the parent's logo made the subtree read as one repeated icon. Solid
+// fills with a white glyph, Jira-lozenge style: a pale tint read as washed out
+// next to the apps' own colourful artwork (owner: "i like colorful").
+.o_sw_child_icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    padding-top: $o-sw-icon-nudge;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 0.72rem;
+}
+
+// A project row is not a menu: it shows the project's initial on the tile, the
+// way Jira gives every project an avatar. The tone cycles per project.
+.o_sw_child_icon_letter {
+    font-size: 0.66rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+// Atlassian's bold fills; the tone comes from CHILD_ICON_RULES in sidebar.js
+// and carries the family (work / people / reporting / stock / money / events /
+// configuration).
+.o_sw_tone_blue {
+    background: #1868db; // Blue 700
+}
+
+.o_sw_tone_purple {
+    background: #6e5dc6; // Purple 600
+}
+
+.o_sw_tone_green {
+    background: #22a06b; // Green 600
+}
+
+.o_sw_tone_orange {
+    background: #e56910; // Orange 500
+}
+
+.o_sw_tone_red {
+    background: #c9372c; // Red 600
+}
+
+.o_sw_tone_teal {
+    background: #2898bd; // Teal 600
+}
+
+.o_sw_tone_grey {
+    background: #44546f; // Neutral 800
+}
+
+.o_sw_node_active > .o_sw_node_row {
+    background: $o-sw-selected-bg;
+
+    .o_sw_node_label,
+    .o_sw_node_caret {
+        color: $o-sw-selected-text;
+    }
+
+    .o_sw_node_label {
+        font-weight: 600;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Layout: what an open sidebar does to the page
+// ---------------------------------------------------------------------------
+
+@include media-breakpoint-up(md) {
+    body.o_kula_sidebar_on {
+        // Module switching now lives in the sidebar, so the top bar keeps only
+        // the breadcrumb, the systray and the user menu. Hidden at every
+        // width: the sidebar is the app switcher and the top bar's own
+        // controls sit in that corner.
+        .o_main_navbar {
+            .o_navbar_apps_menu,
+            .o_menu_brand,
+            .o_menu_sections {
+                display: none !important;
+            }
+        }
+    }
+
+    // The sidebar is always pinned: an open tree is part of the layout and
+    // reserves its width (the owner removed the unpin control and the floating
+    // shape with it). The padding goes on the action manager, not on the body:
+    // the top bar spans the full width (that is where the sidebar's control
+    // lives) and only the content makes room for the tree.
+    body.o_kula_sidebar_on .o_action_manager {
+        // Same beat as the sidebar's own slide (see .o_kula_sidebar), so
+        // opening or closing reads as one movement.
+        transition: padding-left 0.15s ease;
+    }
+
+    body.o_kula_sidebar_on:not(.o_sw_sidebar_closed) .o_action_manager {
+        padding-left: $o-sw-width;
+    }
+
+    body.o_sw_sidebar_closed .o_kula_sidebar {
+        transform: translateX(-100%);
+    }
+}
+
+// Phones and narrow windows: no room for a 260px tree next to the page, so
+// the sidebar is a drawer over it, opened by the top bar's toggle.
+// Breakpoint must match SMALL_SCREEN_QUERY in sidebar.js: Bootstrap 5's
+// media-breakpoint-down(md) is max-width 767.98px, while down(sm) would only
+// cover below 576px and leave 576-767 with a hidden tree and no drawer.
+@include media-breakpoint-down(md) {
+    .o_kula_sidebar {
+        transform: translateX(-100%);
+        box-shadow: 4px 0 16px $o-sw-shadow;
+    }
+
+    body.o_sw_sidebar_mobile_open {
+        .o_kula_sidebar {
+            transform: translateX(0);
+        }
+
+        .o_sw_backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            // Inside the aside's stacking context, so it covers the page but
+            // stays behind the panel itself.
+            z-index: -1;
+            background: $o-sw-scrim;
+        }
+    }
+}
