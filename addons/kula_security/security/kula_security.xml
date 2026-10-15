@@ -75,9 +75,10 @@
 
         That is what makes kiosk-only structural rather than a UI habit: a member
         has no POS menu because no group of theirs grants one, and no rights
-        outside ir.model.access.csv. The guard in kiosk_guard.js is still what puts them
-        in the register on sign-in, but it is no longer the only thing standing
-        between them and the backend.
+        outside ir.model.access.csv. Coming the other way, models/ir_http.py refuses to
+        build the backend at all for a member: the shell (\u201c/odoo\u201d and \u201c/web\u201d) redirects
+        them to the register, so there is no backend page for the rights above to
+        guard in the first place.
 
         One honest limit of the mechanism: base.group_user is the floor, and it
         already grants read on a wide band of models (product.supplierinfo among

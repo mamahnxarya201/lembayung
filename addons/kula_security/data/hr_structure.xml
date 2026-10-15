@@ -36,4 +36,18 @@
         <field name="sequence">10</field>
     </record>
 
+    <!--
+        A person who works both counters.
+
+        Not a third role — the roles are the two above, and holding both is a
+        groups fact. This is only a place to put somebody whose work is both, so
+        that a both-roles employee does not read as one of them. Same department,
+        so same degree.
+    -->
+    <record id="hr_job_worker" model="hr.job">
+        <field name="name">Worker</field>
+        <field name="department_id" ref="hr_department_counter"/>
+        <field name="sequence">20</field>
+    </record>
+
 </odoo>

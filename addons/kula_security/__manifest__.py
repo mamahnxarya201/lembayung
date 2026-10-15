@@ -25,9 +25,4 @@
         # The structure the roles occupy in the Employees app.
         "data/hr_structure.xml",
     ],
-    "assets": {
-        "web.assets_backend": [
-            "kula_security/static/src/kiosk_guard.js",
-        ],
-    },
 }
