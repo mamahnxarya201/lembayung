@@ -1,0 +1,27 @@
+// Chat, removed.
+//
+// The owner asked for the chat features gone. The mail module cannot be
+// uninstalled -- hr and account depend on it, and so does the notifications
+// machinery behind them -- so what is removed is the chat UI: the chat systray
+// item and its unread badge, the availability dot on the user menu, and the chat
+// windows themselves. The Discuss app is handled next to this, in the sidebar's
+// own curation, so it is not offered as a destination either.
+//
+// Scoped to body.o_kula_sidebar_on like the rest of this module's chrome, so it
+// cannot reach the register (its body class is `pos`) or the portal.
+//
+// These are mail's own class names, taken from the live DOM rather than guessed:
+// .o-mail-DiscussSystray-class carries the bubble, .o-mail-MessagingMenu-counter
+// its badge, .o-mail-ImStatus the online/offline dot. The chat window selectors
+// are belt and braces -- no window was open to confirm the exact name -- and a
+// selector that matches nothing costs nothing.
+body.o_kula_sidebar_on {
+    .o-mail-DiscussSystray-class,
+    .o-mail-MessagingMenu-counter,
+    .o-mail-ImStatus,
+    .o-mail-ChatHub,
+    .o-mail-ChatWindowContainer,
+    .o-mail-ChatWindow {
+        display: none !important;
+    }
+}

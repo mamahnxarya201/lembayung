@@ -52,6 +52,13 @@ const CURATED_APP_XMLIDS = [
 const KIOSK_NODE_ID = -1;
 const KIOSK_MENU_XMLID = "kula_workspace.menu_kiosk";
 
+const HIDDEN_APP_XMLIDS = [
+    // Chat, removed (see theme/chat.scss): the Discuss app must not be offered
+    // as a destination either, so it is filtered out even when it is the app the
+    // user happens to be in.
+    "mail.menu_root_discuss",
+];
+
 /** Children the sidebar never shows: stock Odoo dumps its config here. */
 const HIDDEN_CHILD_NAMES = ["Configuration"];
 
@@ -278,7 +285,11 @@ export class KulaSidebar extends Component {
         // section menus are hidden by sidebar.scss), so an app outside the
         // curated list would otherwise have no way to reach its own submenus.
         const current = this.menuService.getCurrentApp();
-        if (current && !CURATED_APP_XMLIDS.includes(current.xmlid)) {
+        if (
+            current &&
+            !CURATED_APP_XMLIDS.includes(current.xmlid) &&
+            !HIDDEN_APP_XMLIDS.includes(current.xmlid)
+        ) {
             nodes.push(this.menuService.getMenuAsTree(current.id));
         }
         return [this.kioskNode(), ...nodes.map((node) => this.curate(node))];

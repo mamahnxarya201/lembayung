@@ -28,6 +28,8 @@
             # they win ties against the others.
             # The top bar itself (blue 800, white on blue).
             "kula_workspace/static/src/theme/navbar.scss",
+            # Chat, removed.
+            "kula_workspace/static/src/theme/chat.scss",
             "kula_workspace/static/src/theme/controls.scss",
             "kula_workspace/static/src/theme/surfaces.scss",
             "kula_workspace/static/src/theme/forms.scss",
