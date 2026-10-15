@@ -15,7 +15,7 @@ services:
     portal:
       url: /web/login?db=development-odoo
       title: Odoo (lembayung)
-      description: "development-odoo has demo data plus point_of_sale, stock, hr, account, l10n_id and kula_pos_layout. Admin: aryana@odoo.com / admin."
+      description: "development-odoo has no Odoo demo data (kula_pos_layout's IDR rounding forbids it) but is seeded with a POS catalogue: config Kula Counter, categories Coffee/Tea/Juice, products Kopi/Es Teh/Sinom. Modules: point_of_sale, stock, hr, account, l10n_id, kula_pos_layout. Admin: aryana@odoo.com / admin."
   mail:
     command: podman-compose -p lembayung up mail
     port: 8025
