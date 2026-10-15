@@ -2,115 +2,42 @@
 //
 // Atlassian Design System tokens, the same set as the sidebar: the bar is Blue
 // 800 #0055CC -- Jira's header blue, and the closest ADS token to it -- with
-// white text and white-on-blue controls. The earlier purple (the tail of the
-// Workspace icon's gradient) read as "a little bit off" next to that icon
-// (owner review); the icon keeps its own gradient, the chrome is one blue.
+// white text on top of it.
+//
+// Two mechanisms, because Odoo 19 colours the bar and its entries differently:
+//
+//   * The bar itself is `background: $o-navbar-background` compiled into a
+//     literal in the built CSS. There is no `--NavBar-background` custom
+//     property to override -- `grep -- '--NavBar-'` over web's SCSS finds only
+//     `--NavBar-entry-*` and `--NavBar-brand-*` -- so a rule is the only way to
+//     recolour the bar. It needs no `!important`: `body.o_kula_sidebar_on
+//     .o_main_navbar` already outranks Odoo's plain `.o_main_navbar`.
+//
+//   * The entries (menu items, brand, toggles) read `--NavBar-entry-*` custom
+//     properties whose fallbacks are that same purple, so they have to be
+//     overridden as well or a blue bar still flashes purple menus on hover.
+//     They are set on the body and inherit down; Odoo only ever reads them with
+//     a fallback, so defining them here always wins.
 $o-sw-topbar: #0055cc; // Blue 800
 $o-sw-topbar-hover: rgba(255, 255, 255, 0.16);
 
 body.o_kula_sidebar_on {
-    // `!important`, unlike upstream: Odoo 19 paints the navbar from its own
-    // brand rule, which outranks a plain `body.… .o_main_navbar` background.
-    .o_main_navbar,
-    .o_main_navbar > nav {
-        background-color: $o-sw-topbar !important;
+    --NavBar-entry-color: #fff;
+    --NavBar-entry-color--hover: #fff;
+    --NavBar-entry-color--active: #fff;
+    --NavBar-entry-backgroundColor: transparent;
+    --NavBar-entry-backgroundColor--hover: #{$o-sw-topbar-hover};
+    --NavBar-entry-backgroundColor--focus: #{$o-sw-topbar-hover};
+    --NavBar-entry-backgroundColor--active: #{$o-sw-topbar-hover};
+    --NavBar-brand-color: #fff;
+
+    .o_main_navbar {
+        background: $o-sw-topbar;
     }
 
     // The search/create group carries the auto margin, so the systray follows
     // it instead of pushing itself away from it.
     .o_menu_systray {
         margin-left: 0 !important;
-    }
-}
-
-// The sidebar's controls, in the navbar's left corner: same white-on-blue as
-// the search box, but square and quiet.
-.o_sw_chrome {
-    gap: 0.15rem;
-    padding-left: 0.35rem;
-}
-
-.o_sw_chrome_btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.85);
-    font-size: 0.9rem;
-
-    &:hover,
-    &:focus-visible {
-        background: $o-sw-topbar-hover;
-        color: #fff;
-    }
-
-}
-
-.o_sw_topbar {
-    // Pushed right, so the group sits between the breadcrumbs and the systray.
-    margin-left: auto;
-    gap: 0.5rem;
-    padding-right: 0.5rem;
-}
-
-.o_sw_topbar_search {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 15rem;
-    padding: 0.25rem 0.6rem;
-    border: 0;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.18);
-    color: #fff;
-    font-size: 0.85rem;
-    text-align: left;
-
-    &:hover,
-    &:focus-visible {
-        background: rgba(255, 255, 255, 0.28);
-    }
-
-    .o_sw_topbar_search_label {
-        flex: 1 1 auto;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        opacity: 0.9;
-    }
-}
-
-.o_sw_topbar_create {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.25rem 0.7rem;
-    border: 0;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.18);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-
-    &:hover,
-    &:focus-visible {
-        background: rgba(255, 255, 255, 0.28);
-    }
-}
-
-// The labels do not fit in a narrow window; the icons stay.
-@include media-breakpoint-down(lg) {
-    .o_sw_topbar_search {
-        width: 3rem;
-        justify-content: center;
-    }
-
-    .o_sw_topbar_search_label,
-    .o_sw_topbar_create_label {
-        display: none;
     }
 }
