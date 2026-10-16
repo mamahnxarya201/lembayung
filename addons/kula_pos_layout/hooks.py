@@ -45,6 +45,25 @@ def post_init_hook(env):
     elif not qris.kula_is_qris:
         qris.kula_is_qris = True
 
+    # Cash has to be *ensured*, not assumed. A database with no cash journal has
+    # no cash payment method, and the first version of this hook only created
+    # QRIS -- so a fresh database came out with a till that could not take cash
+    # at all, which is the opposite of the cash-and-QRIS it was written for. A
+    # cash journal is what makes `is_cash_count` true, and `is_cash_count` is
+    # what makes Odoo compute change; a cash method on a bank journal would take
+    # money and give none back.
+    cash = method_model.search([("is_cash_count", "=", True)], limit=1)
+    if not cash:
+        cash_journal = env["account.journal"].search([("type", "=", "cash")], limit=1)
+        if not cash_journal:
+            cash_journal = env["account.journal"].create({
+                "name": "Cash",
+                "type": "cash",
+                "code": "CSH",
+                "company_id": env.company.id,
+            })
+        cash = method_model.create({"name": "Cash", "journal_id": cash_journal.id})
+
     for config in env["pos.config"].search([]):
         # Odoo refuses to touch a config's payment methods while one of its
         # sessions is open, and that refusal is a UserError -- which, raised
