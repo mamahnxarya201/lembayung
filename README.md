@@ -6,7 +6,7 @@ Mailpit mail catcher — run with `podman-compose`, with the toolchain supplied 
 
 ```
 docker-compose.yaml   the stack (Odoo 19, Postgres 18, Mailpit)
-seed/                 the "Suaraloka" demo dataset (seed.py + CSVs)
+seed/                 the "Kula" demo dataset (seed.py + CSVs)
 devenv.nix/.yaml      the dev environment + helper scripts
 .env                  compose variables (git-ignored)
 ```
@@ -17,8 +17,8 @@ devenv.nix/.yaml      the dev environment + helper scripts
 | Mailpit | http://localhost:8025 | catches every email Odoo sends (in-memory) |
 | Postgres | internal only | user `admin` (see `.env`) |
 
-Demo logins after seeding: `<first>.<last>@suaraloka.example` / `admin`
-(66 of them). Company `Suaraloka`, Indonesia / IDR.
+Demo logins after seeding: `owner@kula.example`, `cashier@kula.example`,
+`barista@kula.example` / `kiosk`. Company `Kula`, Indonesia / IDR.
 
 ---
 
@@ -78,23 +78,33 @@ The seed writes nothing unless you pass `--apply`.
 ```bash
 seed --password admin                 # dry run: reports what it would do
 seed --password admin --apply         # write
-seed --password admin --purge --apply # delete everything it created
+seed --password admin --purge --apply # take back what it created
 ```
 
-It is idempotent (natural keys, re-running reports `updated`, never duplicates)
-and talks to Odoo over XML-RPC on `http://localhost:8069`.
+It is idempotent (natural keys: badge numbers, logins, names — re-running
+reports `updated`, never duplicates) and talks to Odoo over XML-RPC on
+`http://localhost:8069`.
 
-> **Heads-up:** the users' roles resolve to `suaraloka_security.group_*`, and
-> the CPM demo network needs `suaraloka_cpm`. Neither module is in this folder,
-> so `--apply` fails loudly on role resolution until you drop the module(s) into
-> `./addons/`, e.g.:
->
-> ```bash
-> cp -r ../odoo-compose/addons/suaraloka_security addons/
-> ```
->
-> Without any addons the rest of the seed (company, departments, employees,
-> lunch, …) is fine; only the login/role step needs the module.
+What it writes is one small cafe — the scenario this repo is built for:
+
+| File | What it seeds |
+|---|---|
+| `company.csv` | the trading name and address (the receipt header) |
+| `employees.csv`, `users.csv` | owner, cashier and barista: an employee and a login each |
+| `departments.csv` | the department they sit in, and who runs it |
+| `menu.csv` | what the counter sells: POS category and price |
+| `inventory.csv` | the pantry behind the menu: cost and quantity on hand |
+| `sales.csv` | a day of takings: one shift, its orders, their times and payment |
+
+The role groups, the `Counter` department and the Cashier/Barista job positions
+are **module data**, from `addons/kula_security`; the seed only looks them up
+and fails loudly when the module is missing, so install it first (an orb does,
+see §2).
+
+Two Odoo rules bound what `--purge` can take back: a paid `pos.order` cannot be
+deleted (so the day of takings, the menu it sold and the register stay), and a
+`stock.quant` cannot be unlinked (so a pantry item is counted to zero and
+archived, not deleted). The script prints what it kept and why.
 
 ---
 

@@ -1,0 +1,11 @@
+order,time,product,qty
+1,08:40,Kopi,1
+1,08:40,Es Teh,1
+2,09:05,Kopi,2
+3,10:20,Sinom,1
+3,10:20,Es Teh,1
+4,11:45,Kopi,3
+5,13:10,Sinom,2
+6,15:30,Es Teh,2
+6,15:30,Kopi,1
+7,17:05,Kopi,1

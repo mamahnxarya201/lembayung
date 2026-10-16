@@ -1,22 +1,2 @@
-name,parent,manager_code
-Executive,,SL0001
-Talent & Booking,Executive,SL0004
-Production,Executive,SL0009
-Stage & Rigging,Production,SL0013
-Audio,Production,SL0018
-Lighting & Visual,Production,SL0022
-Site Operations,Executive,SL0026
-Power & Utilities,Site Operations,SL0029
-Sanitation & Waste,Site Operations,SL0031
-Traffic & Transport,Site Operations,SL0033
-Ticketing & Access,Executive,SL0035
-Marketing & PR,Executive,SL0039
-Sponsorship & Partnerships,Executive,SL0044
-Food & Beverage,Executive,SL0047
-Safety & Security,Executive,SL0050
-Medical & First Aid,Safety & Security,SL0052
-Finance & Legal,Executive,SL0054
-Crew & Volunteers,Executive,SL0058
-Artist Hospitality,Executive,SL0061
-Merchandise & Retail,Executive,SL0064
-Sustainability,Executive,SL0066
+name,manager_code
+Counter,KULA0001

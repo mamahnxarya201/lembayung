@@ -131,7 +131,7 @@
     };
 
     seed = {
-      description = "Seed the Suaraloka dataset -- dry run unless --apply";
+      description = "Seed the Kula dataset -- dry run unless --apply";
       exec = ''
         set -euo pipefail
         cd "''${DEVENV_ROOT:-.}"

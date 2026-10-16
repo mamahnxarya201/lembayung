@@ -20,8 +20,10 @@
 #   * .env, container-data/ (the `init` devenv script's job, inlined here) and
 #     all three container images (odoo, postgres, mailpit)
 #   * the `development-odoo` database with the module set this repo works on
-#     installed and a small POS catalogue in it, so an orb is immediately
-#     usable. Deliberately WITHOUT Odoo's demo data: see create_database.
+#     installed and the Kula dataset seeded into it (seed/seed.py: company,
+#     three roles with their employees, the menu, the pantry, a day of takings),
+#     so an orb is immediately usable. Deliberately WITHOUT Odoo's demo data:
+#     see create_database.
 #
 # This script never leaves a long-lived process behind. The compose stack is
 # started only to build the database and stopped again before the script exits;
@@ -383,8 +385,18 @@ if not company.chart_template:
     env['account.chart.template'].try_loading('id', company)
     env.cr.commit()
 
+# The developer is in Jakarta and the shop is too (seed/seed.py's TZ), so the
+# admin login reads every timestamp in WIB instead of the UTC default a
+# CLI-created database starts with. Without it the seeded day of takings shows
+# seven hours earlier than the times in seed/sales.csv.
+admin = env.ref('base.user_admin', raise_if_not_found=False)
+if admin and admin.tz != 'Asia/Jakarta':
+    admin.partner_id.tz = 'Asia/Jakarta'
+    env.cr.commit()
+
 print('company:', company.name, '| country:', company.country_id.code,
-      '| currency:', company.currency_id.name, '| chart:', company.chart_template)
+      '| currency:', company.currency_id.name, '| chart:', company.chart_template,
+      '| admin tz:', admin.tz if admin else '-')
 PY
 }
 
@@ -406,106 +418,13 @@ assert_idr_is_whole_rupiah() {
     echo "    IDR rounding is $rounding -- whole rupiah, as the module intends"
 }
 
-# The repo ships no seed data (seed/seed.py needs suaraloka_security, which is
-# not in this repository), so a fresh demo-less database has an empty product
-# screen and the category dropdown has nothing to show. This creates the
-# minimum docs/pos-layout-backlog.md P1 asks for -- a POS config, the three
-# menu categories and the three products the backlog names -- so the layout can
-# be opened and screenshotted in a fresh orb. Idempotent: keyed on name.
-seed_pos_catalogue() {
-    odoo_cli shell -d "$ODOO_DB" <<'PY'
-PosConfig = env['pos.config']
-config = PosConfig.search([('company_id', '=', env.company.id)], limit=1)
-if not config:
-    config = PosConfig.create({'name': 'Kula Counter'})
-
-categories = {}
-for name in ('Coffee', 'Tea', 'Juice'):
-    category = env['pos.category'].search([('name', '=', name)], limit=1)
-    categories[name] = category or env['pos.category'].create({'name': name})
-
-# Whole-rupiah prices, as kula_pos_layout's IDR rounding produces.
-catalogue = [('Kopi', 10000, 'Coffee'), ('Es Teh', 5000, 'Tea'), ('Sinom', 7000, 'Juice')]
-for name, price, category in catalogue:
-    if env['product.template'].search([('name', '=', name)], limit=1):
-        continue
-    env['product.template'].create({
-        'name': name,
-        'list_price': price,
-        'available_in_pos': True,
-        'pos_categ_ids': [(6, 0, categories[category].ids)],
-    })
-env.cr.commit()
-print('POS config:', config.name,
-      '| categories:', len(env['pos.category'].search([])),
-      '| POS products:', env['product.template'].search_count([('available_in_pos', '=', True)]))
-PY
-}
-
-# The RBAC and the HR structure are only demonstrable with people in them, and
-# people are data while roles are module data -- so this is the orb's job: one
-# user per role plus an owner, an employee for each, and the reporting line that
-# puts cashier and barista at the same depth in the org chart. Idempotent:
-# everything is keyed on the login.
-seed_kiosk_staff() {
-    odoo_cli shell -d "$ODOO_DB" <<'PY'
-password = "kiosk"
-staff = [
-    # login, shared name, role groups, job position
-    ("owner@kula.example", "Kula Owner", ["kula_security.group_owner"], False),
-    ("cashier@kula.example", "Kula Cashier", ["kula_security.group_cashier"], "Cashier"),
-    ("barista@kula.example", "Kula Barista", ["kula_security.group_barista"], "Barista"),
-    # Both roles at once: the roles are additive, so the HR job position has to
-    # name something -- a job is single-valued, the roles are not. Worker is that
-    # something, so this person does not read as one of the two.
-    ("both@kula.example", "Kula Both",
-     ["kula_security.group_cashier", "kula_security.group_barista"], "Worker"),
-]
-department = env.ref("kula_security.hr_department_counter", raise_if_not_found=False)
-if not department:
-    raise RuntimeError("kula_security is not installed; nothing to seed")
-
-owner = None
-for login, name, group_xmlids, job_name in staff:
-    user = env["res.users"].search([("login", "=", login)], limit=1)
-    if not user:
-        user = env["res.users"].create({
-            "name": name,
-            "login": login,
-            "password": password,
-            "group_ids": [(6, 0, [env.ref(x).id for x in group_xmlids])],
-        })
-    employee = env["hr.employee"].search([("user_id", "=", user.id)], limit=1)
-    if not employee:
-        employee = env["hr.employee"].create({
-            "name": name,
-            "user_id": user.id,
-            "company_id": env.company.id,
-            "department_id": department.id,
-        })
-    # Reconciled, not just created: an orb that already has these people from an
-    # earlier run picks up a changed job (a job position is not part of the key).
-    target_job = env["hr.job"].search([("name", "=", job_name)], limit=1) if job_name else env["hr.job"]
-    if employee.job_id != target_job or employee.department_id != department:
-        employee.write({"job_id": target_job.id or False, "department_id": department.id})
-    if job_name is False:
-        owner = employee
-
-# One reporting line for the whole counter: the operators answer to the owner and
-# to nobody else, which is what "same degree" looks like in the chart.
-if owner:
-    for employee in env["hr.employee"].search([("department_id", "=", department.id)]):
-        if employee != owner and employee.parent_id != owner:
-            employee.parent_id = owner.id
-    if department.manager_id != owner:
-        department.manager_id = owner.id
-
-env.cr.commit()
-print("counter staff:", [(e.name, e.job_id.name or "-", e.parent_id.name or "-")
-                         for e in env["hr.employee"].search(
-                             [("department_id", "=", department.id)], order="id")])
-print("counter manager:", department.manager_id.name)
-PY
+# The dataset itself is the repository's own seeder, not a snippet here: it is
+# the same script `devenv shell` exposes as `seed`, it is idempotent, and it
+# knows the whole scenario (company, roles and employees, the menu, the pantry,
+# a day of takings). The stack is up between prepare_database and stop_stack
+# below, and seed/seed.py talks XML-RPC to it.
+seed_kula_dataset() {
+    python3 seed/seed.py --password "$ODOO_ADMIN_PASSWORD" --apply
 }
 
 # Starts the stack -- every step after this one needs it up -- and creates the
@@ -599,16 +518,26 @@ write_orb_notes() {
   --without-demo=True --stop-after-init --no-http --db_host=db --db_user=admin
   --db_password=<from .env>` to apply it. `-u`, not `-i`: `-i` on an already
   installed module is a silent no-op, so your change would never appear.
-- A small POS catalogue is seeded so the product screen is not empty: POS
-  config `Kula Counter`, categories Coffee / Tea / Juice and products
-  Kopi 10 000 / Es Teh 5 000 / Sinom 7 000 (the ones
-  docs/pos-layout-backlog.md P1 names). Re-running `.agents/setup` is
-  idempotent; edit that list in `.agents/setup` if the menu changes.
-- This repo has **no seed data**: `seed/seed.py --apply` cannot run here. It
-  installs `suaraloka_security` and resolves every user role through
-  `suaraloka_security.group_*`, and neither that module nor `suaraloka_cpm`
-  lives in this repository (see README section 3). Run it dry only, or copy
-  the modules in first.
+- The database carries the Kula dataset from this repository's own seeder,
+  `seed/seed.py` -- the same script devenv exposes as `seed`. `.agents/setup`
+  runs it with `--apply`; by hand it is
+  `python3 seed/seed.py --password admin --apply` (dry run without `--apply`).
+  It seeds the company (Kula, Jakarta, IDR), the owner / cashier / barista
+  logins and their employees in the Counter department, the menu (categories
+  Coffee / Tea / Juice, products Kopi 10 000 / Es Teh 5 000 / Sinom 7 000 --
+  docs/pos-layout-backlog.md P1 names them), the pantry with its on-hand stock,
+  and a day of takings in an open POS session at `Kula Counter`. Everything is
+  keyed (badges, logins, names), so a re-run reports `updated` and `kept`.
+  Change the demo in seed/*.csv, not in `.agents/setup`.
+- `--purge --apply` takes back the people and the pantry (archived, not
+  deleted) but keeps the register and the day of takings: Odoo refuses to
+  delete a paid `pos.order`, and refuses to unlink a `stock.quant`, so a
+  product that has had stock can only be archived. The script says so when it
+  runs; see step_purge in seed/seed.py.
+- The demo logins are `owner@kula.example`, `cashier@kula.example` and
+  `barista@kula.example`, password `kiosk` (the admin stays
+  `aryana@odoo.com` / `admin`). The owner is not kiosk-only: they sign into the
+  backend and see the Employees app.
 - Editing `addons/kula_pos_layout/static/**` needs no module update, but the
   running server caches asset *links* in memory, so the page keeps pointing at
   the old bundle hash and the change looks like it did nothing. Restart the
@@ -660,8 +589,7 @@ run_step "configure rootless podman (overlay, tun, user session, XDG wrapper)" c
 run_step "prepare .env, container-data/ and images" prepare_repo_state
 run_step "prepare the Odoo database" prepare_database
 run_step "install the module set and localize the company" ensure_modules
-run_step "seed the POS catalogue (config, categories, products)" seed_pos_catalogue
-run_step "seed the counter staff (role users, employees, reporting line)" seed_kiosk_staff
+run_step "seed the Kula dataset (company, roles, menu, pantry, a day of takings)" seed_kula_dataset
 run_step "stop the compose stack" stop_stack
 run_step "disable NotoColorEmoji (screenshot digit-spacing fix)" fix_screenshot_fonts
 run_step "write orb notes for agents" write_orb_notes

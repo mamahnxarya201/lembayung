@@ -26,6 +26,10 @@ out of the dropdown by core (`hasProductsToShow`), so partial work is safe.
 **Done when:** opening the dropdown lists the categories, selecting one filters the grid, and
 `All` restores it.
 
+**Status 2026-10-16:** done by the seeder. `seed/menu.csv` carries the POS category for each
+product, so `seed/seed.py --apply` creates Coffee / Tea / Juice and files Kopi 10.000, Es Teh
+5.000 and Sinom 7.000 under them — verified live in the register (the dropdown lists all three).
+
 **Effort:** 15 min. **Risk:** none — pure data.
 
 ---
@@ -54,6 +58,10 @@ documents later.
 `res.company.logo` and the company name.
 
 **Done when:** the POS receipt header shows the real trading name, not "My Company" / "Your logo".
+
+**Status 2026-10-16:** the name, phone and address come from `seed/company.csv` (Kula, Jakarta), so
+the seeder renames the company on a fresh database. The **logo** is still unset — the receipt shows
+the placeholder for it.
 
 **Effort:** 10 min.
 
