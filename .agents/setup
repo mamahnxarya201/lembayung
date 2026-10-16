@@ -524,9 +524,14 @@ write_orb_notes() {
   `python3 seed/seed.py --password admin --apply` (dry run without `--apply`).
   It seeds the company (Kula, Jakarta, IDR), the owner / cashier / barista
   logins and their employees in the Counter department, the menu (categories
-  Coffee / Tea / Juice, products Kopi 10 000 / Es Teh 5 000 / Sinom 7 000 --
-  docs/pos-layout-backlog.md P1 names them), the pantry with its on-hand stock,
-  and a day of takings in an open POS session at `Kula Counter`. Everything is
+  Coffee / Tea / Juice / Add On, products Kopi 10 000 / Es Teh 5 000 / Sinom
+  7 000, and the add-ons the kiosk's Add on tile lists -- Extra Shot, Es Batu,
+  Sambal Bawang, Telor, Sego Tok, Cup Take Away; docs/pos-layout-backlog.md P1
+  names the first three), a picture per menu item and category from
+  `seed/images/` (a generated placeholder, uploaded only when the record has
+  none, so a real photo survives a re-seed), the register's layout (kiosk
+  home + add-on category), the pantry with its on-hand stock, and a day of
+  takings in an open POS session at `Kula Counter`. Everything is
   keyed (badges, logins, names), so a re-run reports `updated` and `kept`.
   Change the demo in seed/*.csv, not in `.agents/setup`.
 - `--purge --apply` takes back the people and the pantry (archived, not

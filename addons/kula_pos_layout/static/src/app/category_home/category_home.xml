@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- The kiosk landing view. A standalone template, NOT an inheritance of
+         point_of_sale.CategorySelector: that class is extended for its category
+         resolution, and this markup has nothing in common with core's flat chip
+         row.
+
+         A tile is a button, so it is reachable by keyboard and by the Enter key
+         the POS already listens for; the picture is decorative and the name is
+         the label. -->
+    <t t-name="kula_pos_layout.CategoryHome">
+        <div class="kula-home">
+            <div class="kula-home-grid">
+                <button type="button" t-foreach="this.tiles" t-as="tile" t-key="tile.id"
+                        class="kula-home-tile"
+                        t-on-click="() => this.openCategory(tile)">
+                    <span class="kula-home-pic">
+                        <img t-if="tile.imgSrc" t-att-src="tile.imgSrc"
+                             t-att-alt="tile.name" draggable="false"/>
+                        <i t-else="" class="fa fa-image kula-home-glyph" aria-hidden="true"/>
+                    </span>
+                    <span class="kula-home-name" t-esc="tile.name"/>
+                </button>
+
+                <!-- The counter's add-ons: the products of the configured
+                     category (Settings -> Point of Sale -> KULA counter layout),
+                     which is where an "extra shot" or a take-away cup lives.
+                     Hidden when no category is configured. -->
+                <button type="button" t-if="this.addonCategory"
+                        class="kula-home-tile kula-home-addon"
+                        t-on-click="() => this.openAddons()">
+                    <span class="kula-home-pic">
+                        <i class="fa fa-plus-circle kula-home-glyph" aria-hidden="true"/>
+                    </span>
+                    <span class="kula-home-name">Add on</span>
+                </button>
+
+                <!-- Last resort for a product filed under no POS category: core
+                     keeps those in the grid, and a category-first screen would
+                     otherwise have no way to reach them. Never shown on a
+                     seeded database (every product the till sells has a
+                     category), but a product created in the backend without
+                     one would otherwise be invisible here. -->
+                <button type="button" t-if="this.pos.kulaUncategorizedProducts.length"
+                        class="kula-home-tile kula-home-other"
+                        t-on-click="() => this.openOther()">
+                    <span class="kula-home-pic">
+                        <i class="fa fa-question kula-home-glyph" aria-hidden="true"/>
+                    </span>
+                    <span class="kula-home-name">Other</span>
+                </button>
+            </div>
+        </div>
+    </t>
+</templates>

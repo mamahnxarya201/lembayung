@@ -13,5 +13,7 @@ class ResConfigSettings(models.TransientModel):
         related='pos_config_id.kula_show_card_price', readonly=False)
     pos_kula_category_nav = fields.Selection(
         related='pos_config_id.kula_category_nav', readonly=False)
+    pos_kula_addon_category_id = fields.Many2one(
+        related='pos_config_id.kula_addon_category_id', readonly=False)
     pos_kula_show_more_button = fields.Boolean(
         related='pos_config_id.kula_show_more_button', readonly=False)

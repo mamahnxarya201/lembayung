@@ -4,10 +4,37 @@
        t-inherit="point_of_sale.ProductScreen"
        t-inherit-mode="extension">
 
-        <!-- In-pane category tiles are suppressed while the navbar dropdown is in
-             use, so the entire pane width goes to products. -->
+        <!-- Core's in-pane category chips are rendered only when that mode is
+             chosen explicitly; in kiosk mode the pane shows this module's
+             category tiles instead, and in dropdown mode the navbar dropdown. -->
         <xpath expr="//CategorySelector" position="attributes">
             <attribute name="t-if" add="pos.config.kula_category_nav == 'tiles'" separator=" and "/>
+        </xpath>
+
+        <!-- The kiosk landing view: the whole menu as picture tiles.
+             A sibling of core's category chips rather than a replacement of the
+             product grid, because the grid's markup is core's; the two attribute
+             edits below are what keep the grid from rendering underneath it. -->
+        <xpath expr="//CategorySelector" position="after">
+            <CategoryHome t-if="this.kulaShowCategoryHome"/>
+        </xpath>
+
+        <!-- The product grid and its empty state are an if/elif/else chain on
+             consecutive siblings (the barcode-scanner node starts it), so the
+             tiles' own t-if cannot switch either of them off: an if/else pair
+             only sees its own chain. Both conditions therefore carry the same
+             guard.
+
+             The empty state had to stop being a t-else — an else cannot be
+             conditional, and in kiosk mode the pane is showing tiles, not a
+             "no products" message. Dropping the t-else attribute and adding a
+             t-elif leaves every other mode with exactly the behaviour it had. -->
+        <xpath expr="//div[contains(@class, 'overflow-y-auto')]" position="attributes">
+            <attribute name="t-elif" add="!this.kulaShowCategoryHome" separator=" and "/>
+        </xpath>
+        <xpath expr="//div[@t-else]" position="attributes">
+            <attribute name="t-else"/>
+            <attribute name="t-elif">!this.kulaShowCategoryHome</attribute>
         </xpath>
 
         <!-- Quantity numpad removed from this screen.

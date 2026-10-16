@@ -16,3 +16,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Amp orb scratch: artifacts and uploads are per-orb, not repository content
+.amp/in/

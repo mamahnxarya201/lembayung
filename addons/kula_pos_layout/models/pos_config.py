@@ -29,14 +29,26 @@ class PosConfig(models.Model):
     )
     kula_category_nav = fields.Selection(
         selection=[
+            ('kiosk', "Kiosk: category tiles, products in a popup"),
             ('dropdown', "Navbar dropdown"),
             ('tiles', "In-pane tiles (core)"),
         ],
         string="Category navigation",
-        default='dropdown',
-        help="Dropdown moves the categories next to the search bar and frees the "
-             "whole pane width for products. Tiles is Odoo's core behaviour: "
-             "one tap per category instead of two.",
+        default='kiosk',
+        help="Kiosk shows the categories as picture tiles filling the pane, and "
+             "opens the products of one category in a popup — the pane never "
+             "scrolls, so the whole menu is one tap away on a wall-mounted "
+             "tablet. Dropdown moves the categories next to the search bar and "
+             "frees the whole pane width for products. Tiles is Odoo's core "
+             "behaviour: one tap per category instead of two.",
+    )
+    kula_addon_category_id = fields.Many2one(
+        'pos.category',
+        string="Add-on category",
+        help="The 'Add on' button on the kiosk product screen lists this "
+             "category's products, and one tap drops one onto the current "
+             "order — the upsell a customer asks for at the counter (extra "
+             "shot, take-away cup). Leave empty to hide the button.",
     )
     kula_show_more_button = fields.Boolean(
         string="Keep the actions (...) button",

@@ -19,6 +19,7 @@ came in, who works here -- so they are the three axes the files cover:
     employees.csv    the people: badge number, name, job, contact, wage, manager
     users.csv        one login per person, and the role that login holds
     menu.csv         what the counter sells: POS category and price
+    images/          one picture per menu item and category (placeholders)
     inventory.csv    what the menu is made from: cost and quantity on hand
     sales.csv        one day of takings: the orders, their lines and their times
 
@@ -47,9 +48,11 @@ Notes for Odoo 19, which is what makes this script non-obvious:
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import getpass
 import os
+import re
 import sys
 import xmlrpc.client
 from datetime import date, datetime, time, timedelta, timezone
@@ -67,6 +70,15 @@ SEED_MODULES = ["kula_security"]
 # The register. Not data: one shop has one counter, and the day of takings below
 # is a day of *its* sessions. Created only when the database has no config.
 COUNTER_CONFIG = "Kula Counter"
+
+# The add-ons: the menu's second tier (extra shot, take-away cup). One category
+# holds them, and the register's "Add on" tile is built from it -- which is why
+# this name is a constant and not just another row in menu.csv.
+ADDON_CATEGORY = "Add On"
+
+# Placeholder pictures for the menu, one file per product and per category,
+# named after the record (see upload_menu_image).
+IMAGES_DIR = os.path.join(HERE, "images")
 
 MIN_WAGE = 4_800_000          # user's floor: Indonesian minimum wage
 TZ_OFFSET = 7                 # Asia/Jakarta -- no DST, so a fixed offset is exact
@@ -559,12 +571,23 @@ def step_menu(o, rep, rows):
     it on would charge Rp 11.500 for the Rp 10.000 kopi the card shows. (A
     price-included tax is the other honest answer; dropping it keeps the receipt
     equal to the menu, which is what a counter's price list means here.)
+
+    The POS category column is a contract, not a convenience: the register opens
+    on a grid of category tiles, so a product with no category has no tile to be
+    tapped and cannot be sold. The categories are created from that same column,
+    which is why `menu.csv` is the only place a menu item has to be registered.
+
+    Each product and category is also given a picture, when it has none yet and
+    a file for it exists under seed/images/. Pictures are optional and never
+    overwritten -- see upload_menu_image.
     """
     cat_ids = {}
     for name in sorted({r["pos_category"] for r in rows}):
         rid, st = o.ensure("pos.category", {"name": name}, {})
         cat_ids[name] = rid
         rep.add("menu categories", st)
+        upload_menu_image(o, rep, "pos.category", rid, "image_512",
+                          f"categories/{slug(name)}.png")
 
     ids = {}
     for r in rows:
@@ -580,13 +603,95 @@ def step_menu(o, rep, rows):
             # dry run: ensure() returned a placeholder id, nothing exists yet
             ids[r["name"]] = tmpl
             continue
+        upload_menu_image(o, rep, "product.template", tmpl, "image_1920",
+                          f"products/{slug(r['name'])}.png")
         variants = o.search("product.product", [("product_tmpl_id", "=", tmpl)])
         if not variants:
             sys.exit(f"menu product {r['name']!r}: template {tmpl} has no variant")
         # the till sells the variant, not the template -- a pos.order.line wants
         # a product.product id
         ids[r["name"]] = variants[0]
-    return ids
+    return ids, cat_ids
+
+
+def slug(name):
+    """A record's name as the file name its picture is looked up under."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def upload_menu_image(o, rep, model, record_id, field, relative_path):
+    """Give a record its picture, once.
+
+    `field` is the model's own image field -- product.template.image_1920
+    (every smaller size is derived from it) and pos.category.image_512, which is
+    what the register's `/web/image` URLs read.
+
+    Two rules:
+
+    * No file, no picture. The record keeps whatever Odoo shows for an image-less
+      product, and a card with a placeholder is a better lie than a card with
+      somebody else's photo.
+    * An image that is already there is never replaced. The shop's own photo,
+      uploaded through Products, is not something a demo seeder gets to
+      overwrite -- and this is what makes re-running the seed safe.
+    """
+    if not o.apply or not isinstance(record_id, int):
+        rep.add("menu images", "would-upload")
+        return
+    path = os.path.join(IMAGES_DIR, relative_path)
+    if not os.path.isfile(path):
+        rep.add("menu images", "no file")
+        return
+    if o.call(model, "read", [[record_id], [field]])[0][field]:
+        rep.add("menu images", "kept")
+        return
+    with open(path, "rb") as fh:
+        payload = base64.b64encode(fh.read()).decode()
+    o.call(model, "write", [[record_id], {field: payload}])
+    rep.add("menu images", "uploaded")
+
+
+def report_uncategorized(o, rep):
+    """Say whether every product the till can sell has a POS category.
+
+    The register's landing view is a grid of categories, so a POS-available
+    product without one is reachable only through the fallback "Other" tile
+    (see category_home.xml). Reported rather than enforced: the database is the
+    shop's to edit, and refusing to seed because somebody added a product in the
+    backend would be the wrong trade. Silence here is the "no such product"
+    answer, which is what a correct menu looks like.
+    """
+    rows = o.call("product.template", "search_read",
+                  [[("available_in_pos", "=", True), ("pos_categ_ids", "=", False)],
+                   ["name"]])
+    if not rows:
+        rep.add("uncategorized POS products", "none")
+        return
+    rep.add("uncategorized POS products", "found", len(rows))
+    print("\n  POS products with no POS category -- they show under 'Other' on the")
+    print("  register. File them in a category (menu.csv does it for seeded items):")
+    for row in rows:
+        print(f"    - {row['name']}")
+
+
+def step_register(o, rep, category_ids):
+    """The register's own layout: the kiosk home, and which category is add-ons.
+
+    A step of its own rather than a line in step_sales, where the config is
+    otherwise created: step_sales returns early once the day of takings exists,
+    and a database seeded before this layout did is exactly that case -- it would
+    keep whatever the field held before, since a changed default only reaches
+    records created afterwards.
+    """
+    addon_id = category_ids.get(ADDON_CATEGORY)
+    if addon_id is None:
+        sys.exit(f"menu.csv has no {ADDON_CATEGORY!r} category: the register's "
+                 "'Add on' tile is built from that category")
+    _, st = o.ensure("pos.config", {"name": COUNTER_CONFIG}, {
+        "kula_category_nav": "kiosk",
+        "kula_addon_category_id": addon_id,
+    })
+    rep.add("register layout (pos.config)", st)
 
 
 def step_pantry(o, rep, rows):
@@ -956,7 +1061,9 @@ def main():
     step_users(o, rep, data["users"],
                {e["code"]: e["name"] for e in data["employees"]}, emp_ids)
 
-    menu_ids = step_menu(o, rep, data["menu"])
+    menu_ids, category_ids = step_menu(o, rep, data["menu"])
+    report_uncategorized(o, rep)
+    step_register(o, rep, category_ids)
     step_pantry(o, rep, data["inventory"])
     # The till's sales are the cashier's work: the person on users.csv with that
     # role gets the credit for the day, not the account that ran the seed.

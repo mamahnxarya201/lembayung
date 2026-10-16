@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- One category's products, or the add-on list, in a dialog. The card is
+         core's ProductCard, so a product looks the same here as it does in the
+         grid, price included: this module prints one on every card. -->
+    <t t-name="kula_pos_layout.ProductPopup">
+        <Dialog title="this.props.title" size="'xl'" footer="true">
+            <div t-if="this.products.length" class="kula-popup-grid">
+                <!-- `class` is core's own layout switch (pos.productViewMode):
+                     "flex-column" in grid mode, the horizontal one in list mode.
+                     Without it a card lays its picture and its text side by side
+                     inside a narrow cell. -->
+                <ProductCard t-foreach="this.products" t-as="product" t-key="product.id"
+                             productId="product.id"
+                             product="product"
+                             class="this.pos.productViewMode"
+                             name="product.name"
+                             color="product.color || product.pos_categ_ids?.at(-1)?.color"
+                             imageUrl="this.imageUrl(product)"
+                             onClick="() => this.addProduct(product)"
+                             productCartQty="this.quantityFor(product)"/>
+            </div>
+            <!-- Core's own wording for this state (product_screen.xml). It takes
+                 a category whose products are all inactive or excluded: the tile
+                 is drawn from the category tree, the cards from the store's
+                 filtered list, and the two can disagree. -->
+            <p t-else="" class="text-center my-4">
+                There are no products in this category.
+            </p>
+
+            <t t-set-slot="footer">
+                <!-- The running bill, repeated here because the modal covers the
+                     order pane. Same value the Payment button carries. -->
+                <span class="kula-popup-total" t-esc="this.orderTotal"/>
+                <button type="button" class="btn btn-primary btn-lg ms-auto kula-popup-done"
+                        t-on-click="() => this.props.close()">
+                    Done
+                </button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

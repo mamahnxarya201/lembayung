@@ -20,6 +20,50 @@
             <xpath expr="//Dropdown[.//i[contains(@class, 'fa-bars')]]" position="move"/>
         </xpath>
 
+        <!-- The burger menu is turned into a sidebar, and deliberately NOT
+             replaced: that <Dropdown> is an extension point other modules
+             inherit — pos_hr gates its Backend and Close Register entries on
+             cashier permissions and appends a Lock entry, pos_restaurant adds
+             its floor-plan entries — so a hand-rolled drawer would silently
+             drop those items and their conditions. What this module changes is
+             where the menu is *painted*, not what it contains:
+
+             * menuClass names the popover, which is otherwise an anonymous
+               `.dropdown-menu` in the overlay container, so the stylesheet can
+               pin it to the left edge of the screen (see §13 of the SCSS).
+             * bottomSheet off, so a small screen gets the same drawer instead
+               of core's bottom-sheet rendering of the same menu.
+             * state is created by this module (sidebar.js) so that the menu can
+               be closed from outside the Dropdown component, which is what the
+               scrim below needs. -->
+        <xpath expr="//Dropdown[.//i[contains(@class, 'fa-bars')]]" position="attributes">
+            <attribute name="menuClass">'kula-sidebar-menu'</attribute>
+            <attribute name="bottomSheet">false</attribute>
+            <attribute name="state">this.kulaBurger</attribute>
+        </xpath>
+
+        <!-- The scrim: the layer between the drawer and the register. A real
+             element, not decoration, because it is also the drawer's dismiss
+             gesture — core's own click-away cannot do it, for the reason
+             sidebar.js explains.
+
+             Rendered inside the header with `position: fixed`, which takes it
+             out of the header's flex row; z-index 1035 is above every POS
+             surface (core's dropdowns sit at $zindex-dropdown, 1000) and below
+             the overlay container (1055) the drawer itself is painted in. -->
+        <xpath expr="//div[contains(@class, 'pos-topheader')]" position="inside">
+            <div t-if="this.kulaBurger.isOpen" class="kula-sidebar-scrim"
+                 t-on-click="() => this.kulaBurger.close()"/>
+        </xpath>
+
+        <!-- A name for the panel: core's first row (the proxy badge and the
+             customer-display button) becomes the drawer's header, and the title
+             leads it. Inserted before ProxyStatus because that node is
+             conditional — the row has to get its title either way. -->
+        <xpath expr="//Dropdown//ProxyStatus" position="before">
+            <span class="kula-sidebar-title" t-esc="pos.config.name"/>
+        </xpath>
+
         <!-- Category dropdown, immediately left of the search field so the pair
              reads as scope -> query.
 
@@ -27,7 +71,10 @@
              SIBLING of the search field, not a child: core hides the search off
              the ProductScreen (pos_store.showSearchButton returns false), but the
              dropdown would otherwise survive it and show a category filter on the
-             PaymentScreen, where there is nothing to browse. -->
+             PaymentScreen, where there is nothing to browse.
+
+             Only one navigation is ever on: kiosk browses categories as tiles,
+             so this dropdown appears in 'dropdown' mode alone. -->
         <xpath expr="//Input[@tModel]" position="before">
             <CategoryDropdown t-if="pos.showSearchButton() and pos.config.kula_category_nav == 'dropdown'"/>
         </xpath>

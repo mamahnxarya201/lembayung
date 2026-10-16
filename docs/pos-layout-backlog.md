@@ -5,7 +5,8 @@ verification method has been the hard part on this project (see §9 of
 [the design doc](pos-layout-design.md) for six ways a change has silently done nothing).
 
 Status of the module as committed: `addons/kula_pos_layout` — ProductScreen, PaymentScreen and
-ReceiptScreen themed; IDR renders without decimals; order-line stepper; settings under
+ReceiptScreen themed; IDR renders without decimals; order-line stepper; navbar sidebar; **kiosk mode**
+(category picture tiles → products popup → add-ons, §15 of the design doc); settings under
 **Settings → Point of Sale → KULA counter layout**.
 
 ---
@@ -30,6 +31,13 @@ out of the dropdown by core (`hasProductsToShow`), so partial work is safe.
 product, so `seed/seed.py --apply` creates Coffee / Tea / Juice and files Kopi 10.000, Es Teh
 5.000 and Sinom 7.000 under them — verified live in the register (the dropdown lists all three).
 
+**Status 2026-10-16 (kiosk mode):** the categories are now load-bearing rather than cosmetic: the
+register's landing view is one tile per category, so a product with no POS category has no route to
+it at all. `seed/menu.csv` therefore also carries the **Add On** category (the counter's extras), and
+`seed.py` reports on every run whether any POS-available product is uncategorised
+(`report_uncategorized` — currently `none`). A product holds a single POS category in this dataset;
+the code follows core and accepts several.
+
 **Effort:** 15 min. **Risk:** none — pure data.
 
 ---
@@ -46,6 +54,14 @@ Settings → Point of Sale. The cards are laid out to work either way (the price
 never overlaps the name).
 
 **Done when:** no placeholder graphic appears on any card.
+
+**Status 2026-10-16:** done, with a caveat. `seed/images/` now holds one generated placeholder per
+menu item and per category (flat category colour, the item's name on it), and `seed.py` uploads them
+for any record that has **no** image yet — it never replaces one, so a real photo is safe from a
+re-seed. What the register shows today is therefore a *menu that looks like a menu*, not the shop's
+photographs: replace `seed/images/products/<slug>.png` with the real picture, or upload it on the
+product in Odoo, and delete nothing else. Colours, naming and the one-liner that generates a new
+placeholder are in `seed/images/README.md`.
 
 **Effort:** 5 min to toggle, longer for real photos. **Risk:** none.
 

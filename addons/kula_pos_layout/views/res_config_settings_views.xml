@@ -8,8 +8,11 @@
         <field name="arch" type="xml">
             <xpath expr="//block[@id='pos_interface_section']" position="after">
                 <block title="KULA counter layout" id="kula_layout_section">
-                    <setting help="Where the product categories live. The dropdown frees the whole pane for products; tiles is Odoo's core behaviour with one tap per category.">
+                    <setting help="Where the product categories live. Kiosk fills the pane with picture tiles and opens one category's products in a popup; the dropdown frees the whole pane for products; tiles is Odoo's core behaviour with one tap per category.">
                         <field name="pos_kula_category_nav"/>
+                    </setting>
+                    <setting help="The category the kiosk 'Add on' button lists. Leave empty to hide it.">
+                        <field name="pos_kula_addon_category_id"/>
                     </setting>
                     <setting help="Print a price on every product card. Odoo core shows none.">
                         <field name="pos_kula_show_card_price"/>

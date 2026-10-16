@@ -729,3 +729,154 @@ above the pad has been deleted — one `00` key inside the pad does the job.
 > Probe note: the ProductScreen's Pay button only renders once the cart is non-empty
 > (`showActionButton="!currentOrder?.isEmpty()"`), and core's Customer button carries the class
 > `set-partner` — not `select-partner-button`. Both cost a false negative before being spotted.
+
+---
+
+## 15. Kiosk mode — category tiles, a products popup, and a sidebar
+
+Commanded: the register should open on **the pictures of the categories**, a tap should open **that
+category's products in a popup**, an **Add on** entry should list the counter's extras, and the
+navbar's hamburger menu should become a **sidebar that opens over a dimmed screen**.
+
+This is `pos.config.kula_category_nav = 'kiosk'`, now the field's default and what `seed/seed.py`
+writes onto the register. The other two values still exist and still work (`dropdown`, `tiles`), so
+the change is reversible from *Settings → Point of Sale → KULA counter layout*.
+
+### 15.1 The three pieces, and the extension point each one uses
+
+| Piece | Extension point | Files |
+|---|---|---|
+| Sidebar | core's burger `<Dropdown>`, re-painted: `menuClass`, `bottomSheet`, `state` props + three attribute edits | `navbar/navbar.xml`, `navbar/sidebar.js`, SCSS §13 |
+| Category tiles | new component extending `point_of_sale.CategorySelector` | `category_home/category_home.{js,xml}` |
+| Products popup | `dialog` service + core's `ProductCard` | `product_popup/product_popup.{js,xml}` |
+| Landing view switch | `ProductScreen` template (one inserted node, two attribute edits) + a `kulaShowCategoryHome` getter | `product_screen/product_screen.{xml,js}` |
+
+**The sidebar is deliberately not a hand-built drawer.** The burger menu is an extension point:
+`pos_hr` gates its *Backend* and *Close Register* entries on cashier permissions and appends a *Lock*
+entry, `pos_restaurant` inserts its floor-plan entries — all by matching
+`DropdownItem[contains(text(), 'Backend')]` inside that Dropdown. Replacing the node (the first
+version of this work did) does not fail loudly, it fails at template compile: the whole
+`point_of_sale.Navbar` template stops loading and **the register shows "Oops! Something went wrong"**.
+Verified the hard way. So the menu stays, and only *where it is painted* changes:
+
+- `menuClass="'kula-sidebar-menu'"` — the popover is otherwise an anonymous `.dropdown-menu` in the
+  overlay container, with nothing to aim SCSS at.
+- popper's inline `position` / `inset` / `transform` are overridden with `!important`, which is the
+  only way to beat an inline style, and is why the panel is pinned to the left edge at full height.
+- `bottomSheet="false"` — otherwise a small screen gets core's bottom-sheet rendering of the same
+  menu, i.e. a different animal at exactly the size where the drawer matters.
+- `state="this.kulaBurger"` — the dropdown's own `useDropdownState()` instance, created by
+  `sidebar.js`. It exists for the scrim: core's click-away only closes a dropdown for clicks *inside
+  the same active element*, and the scrim is outside it by construction, so a tap on the dimmer would
+  neither close the drawer nor reach what is behind it. With the state in hand the scrim
+  (`navbar.xml`, `t-if="this.kulaBurger.isOpen"`) closes the menu it dims.
+
+**The category home** extends `CategorySelector` for the same reason the navbar dropdown does: the
+parent already resolves the tree — root categories, ordering, `hasProductsToShow`, nesting, and the
+`/web/image?model=pos.category&field=image_128` URL for a category picture (`show_category_images`
+is on by default). Only the rendering differs, plus three rules of its own:
+
+- the **add-on category is filtered out** of the tiles: it already has the Add on tile, and two tiles
+  opening the same list read as two different things;
+- the tile list comes from `getCategoriesAndSub()`, but each popup's **products come from
+  `pos.productsToDisplay`** — the list the grid renders from, already filtered (active, in POS, not
+  excluded, category limits) and already ordered (favourites, `pos_sequence`, name). Resolving them
+  from `category.associatedProducts` instead would let the popup and the grid disagree about what the
+  menu contains;
+- a **"Other" tile** appears only when a POS product has no POS category at all. Core keeps those in
+  the grid; a category-first screen would otherwise have no way to reach them. On a seeded database
+  there are none (§15.3), and the tile is the fallback for a product somebody creates in the backend.
+
+**The landing view switch** is three template operations, and the middle one is a trap worth naming:
+
+- `kulaShowCategoryHome` is true only in kiosk mode, with a catalogue loaded, not scanning, and — the
+  important part — **no search word**. Searching is the one case where a flat list beats a tree, so a
+  typed query hands the pane back to core's product grid.
+- the product grid and its "no products" message are an `if/elif/else` chain attached to the
+  *barcode-scanner* node, not to the category chips, so the tiles' own `t-if` cannot switch them off.
+  Both conditions therefore carry `and !this.kulaShowCategoryHome`.
+- the empty state had to stop being a `t-else` (an `else` cannot carry a condition): the template
+  extension removes the `t-else` attribute and adds a `t-elif`, which leaves every other mode with
+  exactly the behaviour it had.
+
+**The products popup** stays open while products are added — a customer orders a kopi and two snacks
+with one tile tap and one dismissal. It adds through `pos.addLineToCurrentOrder`, the same store
+method the grid ends up in (`ProductScreen.addProductToOrder` calls it), so merge rules, taxes and
+the variant configurator for a configurable product behave identically. Cards are core's
+`ProductCard` with this module's price, and carry **`class="this.pos.productViewMode"`** — that prop
+is core's own layout switch (`flex-column` in grid mode); without it a card lays its picture and its
+text side by side inside a narrow cell. The footer repeats the running order total, because the modal
+covers the order pane.
+
+### 15.2 The data contract: every product the till sells has a POS category
+
+A category-first screen makes the POS category load-bearing — it is no longer a filter, it is the only
+route to a product. So:
+
+- `seed/menu.csv` is the source of truth: one row per menu item, with its POS category. The seeder
+  creates the categories from that column, so a menu item cannot be added without landing in one.
+- `seed.py` reports, on every run, whether any **POS-available product has no POS category**
+  (`report_uncategorized`). It reports rather than enforces: the database is the shop's to edit.
+- **Add-ons are a category too**, named by the `ADDON_CATEGORY` constant, and the register's Add on
+  tile is built from it via `pos.config.kula_addon_category_id` (a settings field). Empty ⇒ no tile.
+
+The seeded menu gained that tier: *Extra Shot, Es Batu, Sambal Bawang, Telor, Sego Tok, Cup Take
+Away* — the counter's extras, priced from the kiosk this work was specified against. They are rows in
+`menu.csv` like any other; changing them is editing that file.
+
+### 15.3 Pictures
+
+Category tiles and product cards are picture-led, and the database had **no image at all** on any
+product or category (backlog P2), so every card showed Odoo's grey placeholder. `seed/images/` now
+holds one generated placeholder per menu item and per category — a flat category colour with the
+item's name on it, sizes and colours documented in `seed/images/README.md` — and the seeder uploads
+them (`upload_menu_image`) under two rules: **no file, no picture**, and **an image that is already
+there is never replaced**, so a real photo uploaded through *Products* survives a re-seed. Replace a
+file with a real photo at the same path, or upload it in Odoo; either way the seeder leaves it alone
+afterwards.
+
+### 15.4 Verified on the live register
+
+Headless Chromium against the live stack, at 1280×800, 1024×768 and 800×1280 portrait, JS errors **0**:
+
+| Check | Result |
+|---|---|
+| Landing view, 1280×800 | 4 tiles — Coffee, Juice, Tea, Add on — no duplicate Add On category |
+| Landing view, 800×1280 | 2 columns × 232px tiles, `pageScroll` 0, `homeOverflow` 0 |
+| Category pictures | `/web/image?model=pos.category&field=image_128&id=…` on every tile |
+| Tap *Coffee* | popup titled `Coffee`, one card `Kopi · Rp 10,000`, picture present |
+| Tap a card | card badge `1`, footer `Rp 10,000 → Rp 15,000`, order line `Kopi` + stepper behind |
+| Tap *Add on* | popup titled `Add on`, 6 cards with prices, `Cup Take Away Rp 0` included |
+| Tap *Extra Shot* | badge `1`, order line `Extra Shot Rp 5,000`, pane total `Rp 15,000` |
+| Search `o` | kiosk tiles hidden, flat grid of 5 matches + *Search more* |
+| Burger → sidebar | panel pinned left (307px × 800px), title `Kula Counter`, items *Install App, Reload Data, Create Product, Backend, Close Register*, LNA footer; scrim dims the register |
+| Scrim tap | drawer closes (its own dismiss gesture) |
+| Escape | drawer closes (core's navigation hotkey) |
+| *Reload Data* from the drawer | drawer closes, core's `SyncPopup` opens over the register |
+| Settings | *Add-on category* field present in *KULA counter layout* |
+| `kula_category_nav = 'tiles'` | 0 kiosk tiles, core's chips `Add On / Coffee / Juice / Tea`, full grid of 9 products |
+| `kula_category_nav = 'dropdown'` | navbar dropdown present (`All`), no chips, no tiles, grid of 9 |
+| Drawer as the **cashier** login | *Install App, Reload Data, Backend, Close Register* — `Create Product` absent (core gates it on product-creation rights, unchanged) |
+
+**A settings change needs the register to re-read its data.** `pos.config` is part of the data the POS
+caches (IndexedDB, `point-of-sale-1-<db>`), so flipping *Category navigation* shows up on the next
+fresh register load, not on a page refresh — a page reload kept serving `'kiosk'` while the database
+already said `'tiles'`. Either reload data from the drawer (*Reload Data*), or clear the site's
+storage; this is core's offline-first cache, not something this module adds.
+
+A clip of the whole flow — sidebar open, sweep of its items, scrim close, *Coffee* → add, *Add on* →
+add — is at `.amp/in/artifacts/kiosk-flow.mp4` (that directory is orb-local and not tracked by git;
+the stills beside it are `01-kiosk-home.png`, `02-category-popup.png`, `03-addon-popup.png`,
+`04-sidebar-open.png`, `05-search-grid.png`, `06-home-800x1280.png`, `07-popup-800x1280.png`).
+
+### 15.5 Two things this cost that are worth remembering
+
+1. **Removing a node another module extends breaks the whole template.** See the sidebar paragraph
+   above: the failure is a template-compile error on `point_of_sale.Navbar`, which reaches the user
+   as the POS's generic "Something went wrong" screen with the real message only in the browser
+   console. Before replacing any core node in this module, assume another module inherits it:
+   `grep -rl "t-inherit=\"point_of_sale.<Template>\"" /path/to/odoo/addons/*/static/src --include=*.xml`.
+2. **`--` inside an XML comment is a parse error.** Two of these files had one (` -- ` rather than
+   `—`), and the failure mode is the same generic screen, because the whole `…bundle.xml` module fails
+   to load: *"The following modules failed to load: [point_of_sale.assets_prod.bundle.xml]"*. The
+   repository's other XML uses `—` for exactly this reason.

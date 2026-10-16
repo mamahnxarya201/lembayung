@@ -3,7 +3,7 @@
     'version': '19.0.1.0.0',
     'category': 'Sales/Point of Sale',
     'author': "KULA",
-    'summary': "Responsive counter layout: menu left, order right, category dropdown",
+    'summary': "Kiosk counter layout: category tiles, product popup, add-ons, sidebar",
     'description': """
 KULA POS Layout
 ===============
@@ -13,8 +13,14 @@ and keeps it usable on any tablet regardless of resolution or orientation.
 
 * Menu pane on the left, order pane on the right (panes swapped via CSS, so no
   core markup is duplicated).
-* Categories move from in-pane tiles into a navbar dropdown, which frees the
-  whole pane width for the product grid.
+* **Kiosk mode** (the default): the pane opens as picture tiles, one per POS
+  category; tapping one lists that category's products in a popup, where a tap
+  puts one on the order. An **Add on** tile lists the counter's extras, from the
+  category named in Settings. Category dropdown and core's in-pane tiles are kept
+  as the two other values of the same setting.
+* The navbar's burger menu becomes a **sidebar** with a scrim: core's own menu,
+  re-painted, so pos_hr's permission-gated entries and pos_restaurant's floor
+  entries keep working.
 * Product cards carry their price (core prints none).
 * Product grid column count is derived from the viewport, never hardcoded.
 * Exactly three controls on the order side: Payment, Customer, Refund.

@@ -1,5 +1,13 @@
 import { patch } from "@web/core/utils/patch";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
+import { CategoryHome } from "../category_home/category_home";
+
+// The kiosk landing view is rendered by the ProductScreen template, so the class
+// has to know about it. `components` is a static, hence patching the class
+// itself rather than its prototype (same as navbar.js does for its dropdown).
+patch(ProductScreen, {
+    components: { ...ProductScreen.components, CategoryHome },
+});
 
 /**
  * Quantity-only numpad.
@@ -22,6 +30,26 @@ import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product
  * which is noisy for a keypad that is almost always used for quantities.
  */
 patch(ProductScreen.prototype, {
+    /**
+     * Kiosk mode: the pane's landing view is the category tiles, and the
+     * product grid stays out of the way until it is asked for.
+     *
+     * The grid is asked for by searching: a search word is the one case where
+     * a flat list of matches beats a category tree, so this getter hands the
+     * pane back to the grid then (and core's search already flat-lists the
+     * catalogue). Same small-screen and scanner conditions as core's own
+     * category chips, so the kiosk view cannot appear on the phone pane the
+     * scanner or the cart is using.
+     */
+    get kulaShowCategoryHome() {
+        return (
+            this.pos.config.kula_category_nav === "kiosk" &&
+            !this.searchWord &&
+            this.pos.productsToDisplay.length > 0 &&
+            (!this.pos.isSmallProductScreen || !this.pos.scanning)
+        );
+    },
+
     getNumpadButtons() {
         const decimalPoint = this.env.services.localization.decimalPoint;
         return [
