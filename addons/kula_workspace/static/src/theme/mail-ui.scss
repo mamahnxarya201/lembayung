@@ -1,6 +1,6 @@
-// Chat, removed.
+// The parts of mail's interface this project does not use.
 //
-// The owner asked for the chat features gone. The mail module cannot be
+// Chat, removed (owner: "remove the chat features"). The mail module cannot be
 // uninstalled -- hr and account depend on it, and so does the notifications
 // machinery behind them -- so what is removed is the chat UI: the chat systray
 // item and its unread badge, the availability dot on the user menu, and the chat
@@ -24,4 +24,18 @@ body.o_kula_sidebar_on {
     .o-mail-ChatWindow {
         display: none !important;
     }
+}
+
+// The Activities systray button, removed (owner: "delete this activity button i
+// dont need it"). It is the clock in the top bar whose popup reads
+// "Congratulations, you're done with your activities".
+//
+// It carries no class of its own -- verified in the DOM, its markup is a bare
+// `button.o-dropdown` wrapping `i.fa-clock-o[aria-label=Activities]` -- so :has()
+// reaches the button through the icon and removes the whole control rather than
+// leaving an empty button behind. Both the icon class and the aria-label are
+// listed so a change to either one does not quietly bring the button back.
+body.o_kula_sidebar_on .o_menu_systray button:has(> i.fa-clock-o),
+body.o_kula_sidebar_on .o_menu_systray button:has(> i[aria-label="Activities"]) {
+    display: none !important;
 }
