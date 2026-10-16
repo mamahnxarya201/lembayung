@@ -14,8 +14,18 @@
     "application": False,
     "installable": True,
     "auto_install": False,
+    # The install-time hook is what puts the Dashboard in front of the users
+    # that already exist; models/res_users.py covers the ones created later.
+    "post_init_hook": "post_init_hook",
+    "data": [
+        "views/dashboard_views.xml",
+    ],
     "assets": {
         "web.assets_backend": [
+            # The Dashboard page: the action above renders this component.
+            "kula_workspace/static/src/dashboard/dashboard.xml",
+            "kula_workspace/static/src/dashboard/dashboard.js",
+            "kula_workspace/static/src/dashboard/dashboard.scss",
             # Templates are listed before the JS that renders them: the template
             # service must have registered the names before a component tries to
             # render. sidebar_state.js precedes sidebar.js for the same reason.

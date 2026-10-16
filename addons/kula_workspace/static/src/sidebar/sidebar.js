@@ -42,6 +42,21 @@ const CURATED_APP_XMLIDS = [
 ];
 
 /**
+ * The Dashboard row, first in the sidebar.
+ *
+ * The Dashboard page is a client action with a path (`/odoo/dashboard`), and a
+ * client action has no `ir.ui.menu` behind it, so like the Kiosk row below it
+ * this row is synthetic: the click handler opens the action by xmlid and the
+ * route is what lights the row up. Negative id, kept out of the menu service's
+ * id space like the Kiosk row's.
+ */
+const DASHBOARD_NODE_ID = -2;
+const DASHBOARD_MENU_XMLID = "kula_workspace.menu_dashboard";
+const DASHBOARD_PATH = "dashboard";
+/** The Dashboard's client-action tag: what the loaded action identifies itself by. */
+const DASHBOARD_TAG = "kula_workspace.dashboard";
+
+/**
  * The Kiosk row.
  *
  * The register is `/pos/ui/<config_id>`, a client route with no `ir.ui.menu`
@@ -222,10 +237,17 @@ export class KulaSidebar extends Component {
 
         const updateActive = () => this.updateActiveMenu();
         const onToggle = () => this.toggleSidebar();
-        this.env.bus.addEventListener("ROUTE_CHANGE", updateActive);
+        // The action manager announces every mounted action on the environment
+        // bus, and it does so after the controller is in place, so the action is
+        // readable from the handler. This is the event the sidebar needs: the
+        // router's own ROUTE_CHANGE (see the import note above) fires for
+        // back/forward and anchor clicks only, never for the programmatic pushes
+        // that menus, the home action and the Dashboard row all go through --
+        // which is why the highlight used to sit still after the first render.
+        this.env.bus.addEventListener("ACTION_MANAGER:UI-UPDATED", updateActive);
         this.env.bus.addEventListener(SIDEBAR_TOGGLE_EVENT, onToggle);
         onWillUnmount(() => {
-            this.env.bus.removeEventListener("ROUTE_CHANGE", updateActive);
+            this.env.bus.removeEventListener("ACTION_MANAGER:UI-UPDATED", updateActive);
             this.env.bus.removeEventListener(SIDEBAR_TOGGLE_EVENT, onToggle);
         });
 
@@ -264,6 +286,17 @@ export class KulaSidebar extends Component {
         this.applyBodyClasses();
     }
 
+    /** The Dashboard row, which the menu service cannot provide either. */
+    dashboardNode() {
+        return {
+            id: DASHBOARD_NODE_ID,
+            name: _t("Dashboard"),
+            xmlid: DASHBOARD_MENU_XMLID,
+            childrenTree: [],
+            kula_dashboard: true,
+        };
+    }
+
     /** The Kiosk row, which the menu service cannot provide. */
     kioskNode() {
         return {
@@ -292,7 +325,9 @@ export class KulaSidebar extends Component {
         ) {
             nodes.push(this.menuService.getMenuAsTree(current.id));
         }
-        return [this.kioskNode(), ...nodes.map((node) => this.curate(node))];
+        // The Dashboard and the Kiosk row lead the list, in that order: the
+        // owner asked for the Dashboard above the Kiosk menu.
+        return [this.dashboardNode(), this.kioskNode(), ...nodes.map((node) => this.curate(node))];
     }
 
     /**
@@ -364,6 +399,11 @@ export class KulaSidebar extends Component {
         return ids;
     }
 
+    /** The route the browser is on, without Odoo's `/odoo` prefix. */
+    get currentPath() {
+        return (browser.location.pathname || "").replace(/^\/odoo\/?/, "");
+    }
+
     /**
      * The menu whose action path is the page's route, if any.
      *
@@ -374,14 +414,28 @@ export class KulaSidebar extends Component {
      * never lights up.
      */
     menuFromLocation() {
-        const path = (browser.location.pathname || "").replace(/^\/odoo\/?/, "");
+        const path = this.currentPath;
         if (!path) {
             return null;
         }
+        return this.pickVisibleRow(
+            this.menuService.getAll().filter((menu) => menu.actionPath === path)
+        );
+    }
+
+    /** The menu that opens the action currently on screen, if any. */
+    menuForAction(action) {
+        if (!action) {
+            return null;
+        }
+        return this.pickVisibleRow(
+            this.menuService.getAll().filter((menu) => menu.actionID === action.id)
+        );
+    }
+
+    /** Of several candidate rows, the one to highlight (the clicked one wins). */
+    pickVisibleRow(matches) {
         const visible = this.visibleMenuIds;
-        const matches = this.menuService
-            .getAll()
-            .filter((menu) => menu.actionPath === path);
         return (
             matches.find(
                 (menu) => menu.id === this.state.preferredMenuId && visible.has(menu.id)
@@ -392,8 +446,30 @@ export class KulaSidebar extends Component {
         );
     }
 
+    /**
+     * Mark the row that stands for what is on screen.
+     *
+     * The action decides, not the URL. The router writes the URL in a debounced
+     * push and then announces the action (action_service's `_updateUI`: it calls
+     * pushState and only then triggers the announcement), so at this point the
+     * URL still names the page the user just left -- matching on it would light
+     * the row they came from. The URL is what the *mount* has to go on, before
+     * any action exists, which is the deep-link case.
+     */
     updateActiveMenu() {
-        const menu = this.menuFromLocation();
+        const action = this.actionService.currentController?.action;
+        // The Dashboard is a client action with no menu behind it: its tag
+        // lights the synthetic row up, or its route while no action is loaded
+        // yet (a reload straight onto /odoo/dashboard).
+        const onDashboard = action
+            ? action.tag === DASHBOARD_TAG
+            : this.currentPath === DASHBOARD_PATH;
+        if (onDashboard) {
+            this.state.activeMenuId = DASHBOARD_NODE_ID;
+            this.state.activeAppId = 0;
+            return;
+        }
+        const menu = this.menuForAction(action) || this.menuFromLocation();
         this.state.activeMenuId = menu ? menu.id : 0;
         this.state.activeAppId =
             (menu && menu.appID) || this.menuService.getCurrentApp()?.id || 0;
@@ -437,14 +513,19 @@ export class KulaSidebar extends Component {
         return !!this.state.expanded[node.id];
     };
 
-    /** The row's own icon: the Kiosk row has none, so it borrows the register's. */
+    /** The row's own icon: the Kiosk and Dashboard rows have none of their own. */
     appIconGlyph = (node) => {
+        if (node.kula_dashboard) {
+            return "fa-th-large";
+        }
         return node.kula_kiosk ? "fa-shopping-basket" : "";
     };
 
     onNodeSelect = async (node) => {
         const small = browser.matchMedia(SMALL_SCREEN_QUERY).matches;
-        if (node.kula_kiosk) {
+        if (node.kula_dashboard) {
+            await this.openDashboard();
+        } else if (node.kula_kiosk) {
             await this.openKiosk();
         } else if ((node.childrenTree || []).length) {
             // Like a tree view: clicking a branch opens it, the caret closes it.
@@ -467,6 +548,21 @@ export class KulaSidebar extends Component {
         this.state.expanded[node.id] = !this.isExpanded(node);
         this.state.expansionVersion++;
     };
+
+    /**
+     * Open the Dashboard.
+     *
+     * By xmlid rather than by id: the action is the module's own record, so
+     * there is nothing to resolve and nothing that can be missing.
+     * `clearBreadcrumbs` mirrors what the menu service does for a menu row, so
+     * the Dashboard replaces the page (and the breadcrumb) instead of stacking
+     * on top of it.
+     */
+    async openDashboard() {
+        await this.actionService.doAction("kula_workspace.action_dashboard", {
+            clearBreadcrumbs: true,
+        });
+    }
 
     /**
      * Open the register.

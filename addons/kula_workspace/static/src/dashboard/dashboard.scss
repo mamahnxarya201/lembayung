@@ -1,0 +1,18 @@
+// Part of the Odoo 19.0 Community series.
+// Copyright 2026 KULA
+// License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
+
+/**
+ * The Dashboard page itself.
+ *
+ * The page is empty by design, so all this styles is its title: Odoo's own
+ * `o_content` wrapper supplies the padding, and the heading only has to stop
+ * looking like a raw HTML page.
+ */
+.o_kula_dashboard {
+    .o_kula_dashboard_title {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+}

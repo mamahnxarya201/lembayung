@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <!--
+        The Dashboard.
+
+        Empty on purpose, since the owner will decide what lives here, so all
+        the page carries is its title. `o_content` is Odoo's own action-area
+        wrapper: it supplies the padding and the scrolling, and the page needs no
+        control panel above it because a client action has nothing to put there.
+    -->
+    <t t-name="kula_workspace.Dashboard">
+        <div class="o_kula_dashboard o_content">
+            <h1 class="o_kula_dashboard_title" t-esc="title"/>
+        </div>
+    </t>
+
+</templates>

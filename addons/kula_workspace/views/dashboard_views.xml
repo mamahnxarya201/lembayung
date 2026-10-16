@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        The Dashboard: the page a non-kiosk user lands on after signing in.
+
+        A client action rather than a menu: there is no model behind it, and the
+        sidebar row that opens it is synthetic too. `path` is what puts the page
+        at /odoo/dashboard, the route the sidebar recognises and the URL the
+        login lands on.
+
+        Its contents are deliberately absent. The owner is still deciding what
+        belongs here, so the page is a title over an empty canvas and nothing
+        else (see static/src/dashboard/).
+    -->
+    <record id="action_dashboard" model="ir.actions.client">
+        <field name="name">Dashboard</field>
+        <field name="tag">kula_workspace.dashboard</field>
+        <field name="path">dashboard</field>
+    </record>
+
+</odoo>
