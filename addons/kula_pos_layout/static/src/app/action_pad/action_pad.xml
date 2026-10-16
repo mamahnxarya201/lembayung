@@ -29,5 +29,21 @@
             <span class="kula-pay-total" t-if="currentOrder"
                   t-esc="currentOrder.currencyDisplayPriceIncl"/>
         </xpath>
+
+        <!-- Save Order: park the order under a name the cashier types.
+
+             A sibling of the Payment container, so it lands under it at the full
+             pane width with the actionpad's own gap — the same size and shape as
+             Payment, and deliberately a different colour (§16 of the SCSS), so
+             the two big actions on this screen are never mistaken for each
+             other. Inside the `showActionButton` block, which is core's "the
+             order is not empty" condition: there is nothing to save otherwise. -->
+        <xpath expr="//div[hasclass('validation')]" position="after">
+            <button class="kula-save-order button btn btn-lg py-3 d-flex align-items-center justify-content-center"
+                    t-on-click="() => this.kulaSaveOrder()">
+                <i class="fa fa-bookmark me-2" aria-hidden="true"/>
+                <span>Save Order</span>
+            </button>
+        </xpath>
     </t>
 </templates>

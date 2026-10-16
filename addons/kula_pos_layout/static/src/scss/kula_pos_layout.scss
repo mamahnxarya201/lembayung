@@ -556,3 +556,103 @@ $kula-radius: 10px;
     font-weight: 750;
     font-variant-numeric: tabular-nums;
 }
+
+/* -----------------------------------------------------------------------------
+   16. Save Order — the button, and the form it opens
+
+   The register's two big actions are Payment and Save Order. They share their
+   geometry (a full-width, thumb-sized button at the bottom of the order pane,
+   from the actionpad) and deliberately not their colour: Payment is the
+   commit, Save Order parks the order and hands the screen to the next customer.
+
+   Teal, set as plain properties: Odoo 19's `.btn` does not read Bootstrap's
+   `--bs-btn-*` variables (setting them changed nothing on the live button), so
+   the colors are declared here and the `:hover`/`:active` selectors carry the
+   extra class to out-specify Bootstrap's own `.btn:hover`.
+   -------------------------------------------------------------------------- */
+.btn.kula-save-order {
+    background-color: #0e7490;
+    border-color: #0e7490;
+    color: #ffffff;
+    font-weight: 650;
+    font-size: clamp(15px, 1.8vh, 17px);
+
+    &:hover,
+    &:focus-visible {
+        background-color: #0b5f75;
+        border-color: #0b5f75;
+        color: #ffffff;
+    }
+
+    &:active {
+        background-color: #094d5f;
+        border-color: #094d5f;
+        color: #ffffff;
+    }
+}
+
+.kula-save-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.kula-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.kula-field-label {
+    color: #4b5563;
+    font-size: 14px;
+    font-weight: 650;
+}
+
+/* 16px is the threshold below which a phone zooms the page on focus. */
+.kula-input {
+    font-size: 16px;
+}
+
+.kula-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 4px;
+
+    .btn {
+        min-width: 120px;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   17. Orders list — the parked orders, on a tablet
+
+   The order's own name: the title the cashier typed into Save Order, printed
+   above core's order name and receipt reference (ticket_screen.xml). Bold,
+   because it is the line the cashier scans the list for.
+
+   The rows get the same finger-sized treatment as the rest of the register —
+   taller cells, bigger type, a legible status badge. Sizes only: the columns,
+   the markup and every action in this screen are core's.
+   -------------------------------------------------------------------------- */
+.kula-ticket-title {
+    font-size: 16px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ticket-screen .orders table .order-row {
+    td {
+        padding-top: 14px;
+        padding-bottom: 14px;
+        font-size: 15px;
+    }
+
+    .badge {
+        font-size: 13px !important;
+        padding: 6px 10px;
+    }
+}

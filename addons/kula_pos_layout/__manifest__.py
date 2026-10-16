@@ -23,7 +23,11 @@ and keeps it usable on any tablet regardless of resolution or orientation.
   entries keep working.
 * Product cards carry their price (core prints none).
 * Product grid column count is derived from the viewport, never hardcoded.
-* Exactly three controls on the order side: Payment, Customer, Refund.
+* Two controls on the order side: **Payment** and **Save Order** — the first
+  commits, the second parks the order under a name the cashier types (a title
+  and a note) and leaves it open in the Orders list, where the title is what the
+  row is scanned for. Everything else (Cancel Order, Pricelist, Refund) lives in
+  the (⋯) popup.
 * Numpad reduced to quantity entry, since Price/Disc modes are disabled here.
 * Every order line carries its own -/+ stepper and a delete button, so a line can
   be decremented or removed in one tap instead of select-then-numpad, and can be

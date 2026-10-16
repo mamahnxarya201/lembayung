@@ -53,7 +53,8 @@ class PosConfig(models.Model):
     kula_show_more_button = fields.Boolean(
         string="Keep the actions (...) button",
         default=True,
-        help="In Odoo 19 the (...) popup is the only place 'Cancel Order' and "
-             "'Pricelist' can be reached from the product screen. Leave this on "
-             "unless you genuinely do not need them at the counter.",
+        help="In Odoo 19 the (...) popup is the only place 'Cancel Order', "
+             "'Pricelist' and 'Refund' can be reached from the product screen. "
+             "Leave this on unless you genuinely do not need them at the "
+             "counter.",
     )

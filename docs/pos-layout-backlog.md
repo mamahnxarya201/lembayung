@@ -6,7 +6,8 @@ verification method has been the hard part on this project (see §9 of
 
 Status of the module as committed: `addons/kula_pos_layout` — ProductScreen, PaymentScreen and
 ReceiptScreen themed; IDR renders without decimals; order-line stepper; navbar sidebar; **kiosk mode**
-(category picture tiles → products popup → add-ons, §15 of the design doc); settings under
+(category picture tiles → products popup → add-ons, §15 of the design doc); **Save Order** (park an
+order under a name, then find it in the Orders list, §16); settings under
 **Settings → Point of Sale → KULA counter layout**.
 
 ---
@@ -96,6 +97,12 @@ should the ticket list mirror the other screens (list left, detail right) or its
 mockup first, as with the PaymentScreen, is the established process here.
 
 **Done when:** a design is agreed and the screen no longer reads as a different product.
+
+**Status 2026-10-16:** partly addressed by §16, not closed. The list now prints the **order title** the
+cashier typed into Save Order as the first line of the name cell (the reason this screen matters at
+all now — it is where a parked order is found), and its rows were sized for a tablet (taller cells,
+15px type, legible status badge). The panes, the toolbar and the columns are still core's, so the
+"looks like a different application" part of the complaint stands.
 
 **Effort:** half a day including a mockup. **Risk:** medium — this screen has more interactive state
 than the others.

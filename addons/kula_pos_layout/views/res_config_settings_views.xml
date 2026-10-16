@@ -20,7 +20,7 @@
                     <setting help="Lower bound in pixels for a product card. The grid fits as many columns as the screen allows. 150 gives about 5 columns at 1280px wide and 4 at 1024px.">
                         <field name="pos_kula_card_min_width"/>
                     </setting>
-                    <setting help="In Odoo 19 the (...) popup is the only route to 'Cancel Order' and 'Pricelist' from this screen.">
+                    <setting help="In Odoo 19 the (...) popup is the only route to 'Cancel Order', 'Pricelist' and 'Refund' from this screen.">
                         <field name="pos_kula_show_more_button"/>
                     </setting>
                 </block>

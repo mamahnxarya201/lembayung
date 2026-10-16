@@ -8,26 +8,31 @@
              template inheritance has no position="remove". -->
         <xpath expr="//InternalNoteButton" position="replace"/>
 
-        <!-- "Save / park order" was not requested. Uses contains(@class, ...)
-             rather than hasclass('fa-upload') because hasclass() does not match
-             hyphenated class names (see action_pad.xml for the full note). -->
+        <!-- "Save / park order" (core's upload button) was not requested on this
+             row; the Save Order button in the actionpad replaces it, and asks
+             for the order's title first. Uses contains(@class, ...) rather than
+             hasclass('fa-upload') because hasclass() does not match hyphenated
+             class names (see action_pad.xml for the full note). -->
         <xpath expr="//button[i[contains(@class, 'fa-upload')]]" position="replace"/>
 
-        <!-- Refund promoted out of the (...) popup onto the main row. Customer is
-             core's own SelectPartnerButton and is deliberately left untouched. -->
-        <xpath expr="//SelectPartnerButton" position="after">
-            <button t-if="!props.showRemainingButtons and this.pos.cashier._role != 'minimal'"
-                    class="kula-refund btn btn-secondary btn-lg"
-                    t-on-click="() => this.clickRefund()">
-                <i class="fa fa-undo me-1" role="img" aria-label="Refund" title="Refund"/>
-                Refund
-            </button>
-        </xpath>
+        <!-- Customer removed on request: this counter identifies an order by the
+             name the cashier types into Save Order, not by a partner record, and
+             the row is being kept to the payment flow. It is core's own
+             SelectPartnerButton — the node only exists in this template, and it
+             is conditional on `!props.showRemainingButtons`, so removing it
+             leaves the "(...)" popup's own list untouched. -->
+        <xpath expr="//SelectPartnerButton" position="replace"/>
+
+        <!-- Refund was promoted onto this row by an earlier revision and is
+             removed on request. It stays reachable in the "(...)" popup, whose
+             list (Cancel Order, Pricelist, Refund, ...) this module does not
+             change. -->
 
         <!-- The (...) button is kept by default: in Odoo 19 it is the only route
-             to "Cancel Order" and "Pricelist" from this screen. Turn it off in
-             Settings if those are genuinely not needed at the counter.
-             contains(@class, ...) again, because "more-btn" is hyphenated. -->
+             to "Cancel Order", "Pricelist" and now "Refund" from this screen.
+             Turn it off in Settings if those are genuinely not needed at the
+             counter. contains(@class, ...) again, because "more-btn" is
+             hyphenated. -->
         <xpath expr="//button[contains(@class, 'more-btn')]" position="attributes">
             <attribute name="t-if" add="pos.config.kula_show_more_button" separator=" and "/>
         </xpath>

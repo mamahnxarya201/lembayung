@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- The name the cashier typed when parking the order, above core's own
+         order name and receipt reference.
+
+         Two operations because the Orders list is rendered twice: a table for
+         tablets (`td.order-name`) and a card list for phones (`div.order-name`).
+         The desktop and the mobile cell hold the same two divs, so the selector
+         differs only in the container element.
+
+         contains(@class, 'order-name') and not hasclass('order-name'):
+         hasclass() never matches a hyphenated class name (see action_pad.xml).
+         The inner `fw-bolder` div is the order's name line; inserting before it
+         puts the title on top and leaves core's two lines in place underneath.
+
+         `order` comes from the screen's own t-foreach scope, and `kula_title` is
+         this module's field on pos.order (models/pos_order.py). -->
+    <t t-name="kula_pos_layout.TicketScreen"
+       t-inherit="point_of_sale.TicketScreen"
+       t-inherit-mode="extension">
+
+        <xpath expr="//td[contains(@class, 'order-name')]//div[hasclass('fw-bolder')]" position="before">
+            <div t-if="order.kula_title" class="kula-ticket-title" t-esc="order.kula_title"/>
+        </xpath>
+
+        <xpath expr="//div[contains(@class, 'order-name')]//div[hasclass('fw-bolder')]" position="before">
+            <div t-if="order.kula_title" class="kula-ticket-title" t-esc="order.kula_title"/>
+        </xpath>
+    </t>
+</templates>

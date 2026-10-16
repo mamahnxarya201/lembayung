@@ -10,7 +10,8 @@ Odoo 19 extension point that realises each change — so the module build is una
 - Device: **tablet** — **responsive, no fixed resolution or orientation** (verified 800×1280 portrait
   through 2560×1600; see §2.1)
 - Mode: **drinks counter / café, counter service** (no floors, no tables)
-- Controls on screen: **Payment, Customer, Refund** — nothing else
+- Controls on screen: **Payment, Customer, Refund** — nothing else. *Superseded by §16: the row is
+  Payment + **Save Order** now, the ⋯ popup keeps the rest, and Customer and Refund are gone.*
 - Language: **English**
 
 Artifacts: [layout mockup](pos-layout-mockup.html) · [payment mockup](pos-layout-payment-mockup.html)
@@ -66,6 +67,9 @@ Sinom are yours**; the other 12 are placeholders. Categories are illustrative to
 └──────────────────────────────────────────────┴──────────────────────────────┘
                     860px                              420px
 ```
+
+> The diagram and the tables in this section describe the build before §15 (kiosk mode) and §16
+> (Save Order). Both are later revisions of the same screen; read them for the current state.
 
 **Panes.** Left = menu (grows). Right = order and actions. The menu takes the larger share because
 the catalogue is the thing that grows; the order side is a bounded column whose contents are limited
@@ -134,16 +138,16 @@ Every row verified against `odoo:19.0` in the running container.
 | Grid | `d-grid gap-1 gap-lg-2`, auto-fill columns | `repeat(auto-fill, minmax(clamp(150px,11vw,200px), 1fr))` — **column count derived from width**, 10px gap | SCSS override on `.product-list` |
 | Order lines | `OrderSummary` → `OrderDisplay`; a line is only editable after it is selected (numpad) | **− qty + stepper + delete on every line** | fill a new slot injected into `point_of_sale.Orderline` from `point_of_sale.OrderSummary` |
 | Totals | total only | Subtotal + emphasised Total | SCSS |
-| Control row | `ControlButtons`: Customer, **Note**, **Save/park**, More ⋯ | Customer + **Refund** | `t-inherit` → `point_of_sale.ControlButtons` |
+| Control row | `ControlButtons`: Customer, **Note**, **Save/park**, More ⋯ | Customer + **Refund** *(§16: the row is the ⋯ button alone now)* | `t-inherit` → `point_of_sale.ControlButtons` |
 | **Refund** | inside the ⋯ popup → `this.clickRefund()` | first-class button | call `clickRefund()` from the extended control row |
 | Numpad (ProductScreen) | `Numpad` with **Qty / Price / Disc** modes | **removed entirely** | empty `replace` of `//Numpad` in `point_of_sale.ProductScreen` |
-| Payment | `ActionpadWidget`: `btn-primary` "Payment", **no amount** | "Payment" + `IDR <total>` | `t-inherit` → `point_of_sale.ActionpadWidget` |
+| Payment | `ActionpadWidget`: `btn-primary` "Payment", **no amount** | "Payment" + `IDR <total>` *(§16 adds Save Order under it)* | `t-inherit` → `point_of_sale.ActionpadWidget` |
 | Control row position | **above** the numpad/actionpad | **below** Payment | xpath move in `point_of_sale.ProductScreen` |
 
 ### Three findings worth calling out
 
 1. **Customer is already free.** `point_of_sale.ControlButtons` renders `SelectPartnerButton` on the
-   main row by default — we keep it and change nothing.
+   main row by default — the original build kept it and changed nothing. §16 removes it.
 2. **Refund needs promoting.** In v19 it is *not* on the product screen; it sits in the
    `ControlButtonsPopup` (the ⋯ popup) and calls `this.clickRefund()`. Putting Refund where you want
    it means re-rendering that button inline. Note it is role-gated
@@ -880,3 +884,96 @@ the stills beside it are `01-kiosk-home.png`, `02-category-popup.png`, `03-addon
    `—`), and the failure mode is the same generic screen, because the whole `…bundle.xml` module fails
    to load: *"The following modules failed to load: [point_of_sale.assets_prod.bundle.xml]"*. The
    repository's other XML uses `—` for exactly this reason.
+
+---
+
+## 16. Save Order — parking an order under a name
+
+Commanded: *drop Refund and Customer from the order-side row*, and *add a "Save Order" button, the same
+kind of button as Payment but another colour, which opens a form (Order Title, then Notes), records
+the time, and leaves the order open in the Orders page — with a tablet feel.*
+
+### 16.1 The button, the form, and what "parking" is
+
+- **The button** (`action_pad.xml`) is a sibling of core's Payment container inside the actionpad, so
+  it lands under Payment at the full pane width with the actionpad's own gap. It is shown under the
+  same condition as Payment (`props.showActionButton`, i.e. the order is not empty) and is teal
+  (`§16` of the SCSS) against Payment's violet: the two big actions must never be confused.
+- **The form** is this module's own dialog (`save_order/save_order.{js,xml}`), not core's
+  `TextInputPopup`, which carries one field. Two fields, sized for a finger, with the title
+  auto-focused; it is handed back to the caller through `makeAwaitable`'s `getPayload`, which is why
+  it resolves *before* closing — the dialog's `onClose` resolves the same promise with nothing.
+- **Parking** is core's own `pos.clickSaveOrder()` — the call behind the upload button this module
+  removes from the control row. It syncs the order to the server as a draft, notifies the cashier
+  ("Order saved for later") and opens a fresh empty order.
+
+### 16.2 Where the title and the note live
+
+| Value | Field | Why |
+|---|---|---|
+| Order Title | **`pos.order.kula_title`** (new, this module) | no such field exists in core; `name`/`pos_reference` are the sequence's |
+| Notes | core's **`general_customer_note`** | the order note core already has: the Note button writes it, the receipt prints it |
+| Time | core's **`date_order`** | set on creation, printed in the Orders list's first column |
+
+`kula_title` needs no plumbing to reach the browser: `pos.order` does not define
+`_load_pos_data_fields` (unlike `pos.order.line`), so — exactly as with `pos.config`'s `kula_*`
+fields — every non-manual field is loaded, and the JS record can read and set it. The order is
+created on the server with that key because `_process_order` creates the order from the client's own
+payload.
+
+### 16.3 The Orders list shows it
+
+`ticket_screen.xml` (new) inserts one node before the order-name line, twice: the Orders list is
+rendered a second time for phones, as a card list rather than a table, so the extension covers
+`td.order-name` (tablet) and `div.order-name` (phone). Both selectors use
+`contains(@class, 'order-name')`, not `hasclass()` — the hyphen rule from §9.1.
+
+Resuming is core's own flow and needed nothing: tap a row to select the order, then the right pane's
+**Load Order** button (a full-width `btn-primary`, which is why this screen already felt like a
+register and only needed bigger rows). Double-clicking the row is the other route.
+
+The row sizing is this module's: taller cells, `15px` type, a legible status badge (SCSS §17). Sizes
+only — the columns, the markup and every action on that screen are still core's, so backlog P3 (the
+full ticket-screen re-theme) stays open.
+
+### 16.4 Removals
+
+- **Customer** (core's `SelectPartnerButton`) is gone from the control row, on request: an order is
+  identified by the name the cashier types, not by a partner record. The node only exists in the
+  `ControlButtons` template and is conditional on `!props.showRemainingButtons`, so the `(⋯)` popup's
+  own list is untouched — but note that this leaves the *desktop* product screen with no way to
+  attach a partner to an order. The small-screen actionpad branch keeps core's own button.
+- **Refund** was promoted onto that row by an earlier revision (§3) and is removed on request. It
+  remains in the `(⋯)` popup, which is the only route to Cancel Order, Pricelist and Refund now.
+
+### 16.5 Verified on the live register
+
+Headless Chromium, 1280×800, JS errors **0**:
+
+| Check | Result |
+|---|---|
+| Control row | no `.set-partner`, no Refund; the `(⋯)` button alone |
+| Actionpad, order empty | no Save Order (nor Payment) — core's `showActionButton` |
+| Actionpad, one Kopi on the order | `Save Order` under `Payment Rp 10,000`, same width (393px), `background rgb(14, 116, 144)` vs Payment's violet |
+| Tap Save Order | dialog titled `Save Order`, labels `Order Title` + `Notes`, title input focused, buttons `Cancel` / `Save Order` |
+| Fill `Kiosk Test` / `less sugar`, tap Save Order | dialog closes, notification `Order saved for later`, a fresh empty order on screen |
+| `pos.order` row (server) | `kula_title = Kiosk Test`, `general_customer_note = less sugar`, `state = draft`, `date_order = 2026-10-16 14:46:11`, `pos_reference = 265-1-000001`, `amount_total = 20000` |
+| Orders list | row `Today · 02:46:11 PM · Kiosk Test · 5001 · 265-1-000001 · Rp 20,000 · Ongoing` — title as the first line of the name cell |
+| Select the row → *Load Order* | back on the ProductScreen with `2 Kopi Rp 20,000`, `kula_title = Kiosk Test`, `general_customer_note = less sugar` |
+| Type in the popup | the POS's keyboard/scan handling is not stolen: the navbar skips its focus handling while a modal is open (`noOpenDialogs()`) |
+
+Deleting an order from that list is worth knowing about when testing: core **cancels** a synced order
+(`state = 'cancel'`) rather than unlinking it, so the row leaves the list but the record stays for the
+audit trail. The test order of this run was removed outright afterwards (a draft/cancel order can be
+unlinked).
+
+### 16.6 Two findings from building this
+
+1. **Odoo 19 buttons do not read Bootstrap's `--bs-btn-*` variables.** Setting `--bs-btn-bg` and
+   friends on the class changed nothing on the live button (`background-color: rgba(0,0,0,0)`,
+   colour `rgb(33, 37, 41)`); the teal is declared as plain properties, with the extra class on the
+   `:hover`/`:active` selectors to out-specify Bootstrap's own `.btn:hover`.
+2. **A new field on `pos.order` needs neither `_load_pos_data_fields` nor a JS model change** (§16.2).
+   It is the opposite of `pos.order.line`, which does define that list — and `pos.order.line`
+   provides `_is_field_accepted`, which is where a field would silently disappear if this had been a
+   line.
