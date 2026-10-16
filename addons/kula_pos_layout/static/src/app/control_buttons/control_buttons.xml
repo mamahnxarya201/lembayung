@@ -36,5 +36,14 @@
         <xpath expr="//button[contains(@class, 'more-btn')]" position="attributes">
             <attribute name="t-if" add="pos.config.kula_show_more_button" separator=" and "/>
         </xpath>
+
+        <!-- ...and labelled. An ellipsis alone asks the reader to know what is
+             behind it; on a counter tablet the row is tapped by whoever is
+             standing there, so the button says what it is. The icon stays
+             (core's own), and the popup behind it is unchanged: Cancel Order,
+             Pricelist, Refund, ... -->
+        <xpath expr="//button[contains(@class, 'more-btn')]" position="inside">
+            <span class="kula-action-label">Action</span>
+        </xpath>
     </t>
 </templates>

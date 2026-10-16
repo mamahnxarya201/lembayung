@@ -656,3 +656,16 @@ $kula-radius: 10px;
         padding: 6px 10px;
     }
 }
+
+/* -----------------------------------------------------------------------------
+   18. The "Action" button on the order row
+
+   Core renders that button as a bare ellipsis; this module labels it (see
+   control_buttons.xml). The row gives its single child the full pane width
+   (§4), so the icon and the label sit together in the middle, at the same size
+   as the payment controls above it.
+   -------------------------------------------------------------------------- */
+.kula-action-label {
+    margin-left: 8px;
+    font-size: clamp(15px, 1.8vh, 17px);
+}

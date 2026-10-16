@@ -936,7 +936,7 @@ The row sizing is this module's: taller cells, `15px` type, a legible status bad
 only — the columns, the markup and every action on that screen are still core's, so backlog P3 (the
 full ticket-screen re-theme) stays open.
 
-### 16.4 Removals
+### 16.4 What left the row, and what is left on it
 
 - **Customer** (core's `SelectPartnerButton`) is gone from the control row, on request: an order is
   identified by the name the cashier types, not by a partner record. The node only exists in the
@@ -945,6 +945,9 @@ full ticket-screen re-theme) stays open.
   attach a partner to an order. The small-screen actionpad branch keeps core's own button.
 - **Refund** was promoted onto that row by an earlier revision (§3) and is removed on request. It
   remains in the `(⋯)` popup, which is the only route to Cancel Order, Pricelist and Refund now.
+- The row's remaining button — core's bare ellipsis — is **labelled "Action"**, icon kept. An ellipsis
+  asks the reader to know what is behind it, and at a counter whoever is standing there taps it; the
+  popup itself is unchanged (Customer Note, Pricelist, Refund, Info, Cancel Order).
 
 ### 16.5 Verified on the live register
 
@@ -961,6 +964,7 @@ Headless Chromium, 1280×800, JS errors **0**:
 | Orders list | row `Today · 02:46:11 PM · Kiosk Test · 5001 · 265-1-000001 · Rp 20,000 · Ongoing` — title as the first line of the name cell |
 | Select the row → *Load Order* | back on the ProductScreen with `2 Kopi Rp 20,000`, `kula_title = Kiosk Test`, `general_customer_note = less sugar` |
 | Type in the popup | the POS's keyboard/scan handling is not stolen: the navbar skips its focus handling while a modal is open (`noOpenDialogs()`) |
+| The row's action button | reads `Action` (icon + label) at 850×1022 *and* 1280×800; tapping it opens core's `Actions` popup with all five entries |
 
 Deleting an order from that list is worth knowing about when testing: core **cancels** a synced order
 (`state = 'cancel'`) rather than unlinking it, so the row leaves the list but the record stays for the
