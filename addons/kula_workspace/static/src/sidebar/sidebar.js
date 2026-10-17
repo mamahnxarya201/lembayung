@@ -29,16 +29,20 @@ import {
  * The sidebar's apps, in display order, by menu xmlid.
  *
  * Everything this project needs and nothing else: the mid-transaction apps
- * (kiosk register, point of sale, inventory, employees, invoicing). Anything
- * missing, uninstalled or hidden from the current user is skipped, so the same
- * list stays valid on another database. Edit this list to change what the
- * sidebar shows; nothing else has to move.
+ * (kiosk register, point of sale, inventory, employees, invoicing) plus the
+ * Access Matrix, which is where the ACL/RBAC configuration lives
+ * (kula_access_matrix). Anything missing, uninstalled or hidden from the
+ * current user is skipped, so the same list stays valid on another database --
+ * the Access Matrix row is admin-only and simply does not appear for anyone
+ * else.
+ * Edit this list to change what the sidebar shows; nothing else has to move.
  */
 const CURATED_APP_XMLIDS = [
     "point_of_sale.menu_point_root",
     "stock.menu_stock_root",
     "hr.menu_hr_root",
     "account.menu_finance",
+    "kula_access_matrix.menu_access_matrix_root",
 ];
 
 /**
@@ -93,6 +97,8 @@ const HIDDEN_CHILD_XMLIDS = [
  * first match wins, matched against the lowercased menu name.
  */
 const CHILD_ICON_RULES = [
+    // The Access Matrix row: a table, because that is what the page is.
+    [["access", "matrix"], "fa-table", "purple"],
     [["order", "session"], "fa-shopping-cart", "blue"],
     [["product"], "fa-cube", "orange"],
     [["report", "analytic", "statistic"], "fa-bar-chart", "purple"],

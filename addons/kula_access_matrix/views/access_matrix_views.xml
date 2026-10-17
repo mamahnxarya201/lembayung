@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        The Access Matrix page.
+
+        A client action rather than a model view: the page is a table over every
+        installed menu crossed with the roles, which no Odoo view type can draw
+        (the columns are groups, and they are the admin's choice). `path` is what
+        puts it at /odoo/access-matrix, so the row can be reloaded and linked to
+        like any other page.
+
+        What the page reads and writes lives in models/kula_access_rule.py.
+    -->
+    <record id="action_access_matrix" model="ir.actions.client">
+        <field name="name">Access Matrix</field>
+        <field name="tag">kula_access_matrix.access_matrix</field>
+        <field name="path">access-matrix</field>
+    </record>
+
+    <!--
+        A menu of its own, not a page buried under Settings.
+
+        The workspace sidebar is the navigation in this project (the top bar's
+        app switcher is hidden, see kula_workspace/static/src/sidebar/), so the
+        row has to be an app-level menu to be reachable at all; it is listed in
+        the sidebar's curated apps. Admin only: it edits menu visibility and
+        access rights, and the model it configures grants nobody else anything.
+    -->
+    <menuitem id="menu_access_matrix_root"
+              name="Access Matrix"
+              action="action_access_matrix"
+              sequence="100"
+              groups="base.group_system"/>
+
+    <!--
+        The marker in Odoo's own Access Rights list. The matrix writes real
+        `ir.model.access` rows, so an admin who wonders where a row came from
+        should be able to see it there. Optional, so the stock screen looks
+        the same until that column is asked for.
+
+        The view is the `_edition` one on purpose: that is the list the Access
+        Rights screen opens (base.ir_access_act points at it), while the plain
+        list view is what the Groups form builds inline for its own tab. A
+        column added to the wrong one would never be seen.
+    -->
+    <record id="view_ir_model_access_list_kula_managed" model="ir.ui.view">
+        <field name="name">ir.model.access.list.kula.managed</field>
+        <field name="model">ir.model.access</field>
+        <field name="inherit_id" ref="base.ir_access_view_tree_edition"/>
+        <field name="arch" type="xml">
+            <field name="perm_unlink" position="after">
+                <field name="kula_managed" optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

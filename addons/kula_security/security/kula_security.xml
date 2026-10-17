@@ -87,6 +87,13 @@
         add more. The rows below are therefore the till's additions on top of that
         floor, and everything they name is something the floor does not already
         give.
+
+        The kiosk rows below are this module's, and they stay here: the Access
+        Matrix (kula_access_matrix) is a screen over the same ground: every
+        installed menu in a row, a role in every column, and in every cell the
+        degree that role has, these rows included, which it shows as already
+        granted and cannot take back. It writes access rows of its own, marks
+        them (kula_managed), and touches nothing else.
     -->
 
 </odoo>

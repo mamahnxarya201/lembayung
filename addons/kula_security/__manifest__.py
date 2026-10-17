@@ -4,7 +4,7 @@
 {
     "name": "KULA Security",
     "summary": "Cashier and barista roles, kiosk-only: sign in and land in the register",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Sales/Point of Sale",
     "license": "LGPL-3",
     "author": "KULA",
@@ -25,4 +25,8 @@
         # The structure the roles occupy in the Employees app.
         "data/hr_structure.xml",
     ],
+    # The ACL/RBAC screen this module used to carry is an addon of its own now
+    # (kula_access_matrix), so the roles here are not tied to a UI and the
+    # screen is not tied to these roles: it installs everywhere and shows
+    # itself to the administrator only.
 }

@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <!--
+        The Access Matrix.
+
+        The action is a wrapper: it hands the page to Odoo's own `WithSearch`,
+        which builds the search model and puts it in the environment for the
+        search bar that the control panel below renders. The rows of this page
+        are menus, so the search is over `ir.ui.menu` and the domain the search
+        bar builds is what the server filters the tree with (access_matrix.js).
+    -->
+    <t t-name="kula_access_matrix.AccessMatrix">
+        <WithSearch t-props="searchProps" t-slot-scope="search">
+            <KulaAccessMatrixBody domain="search.domain" display="display"/>
+        </WithSearch>
+    </t>
+
+    <!--
+        The page itself.
+
+        Odoo's `Layout` supplies the control panel, so the page wears the
+        standard chrome and nothing of its own: the breadcrumb is the title, the
+        search bar is the search bar, Save and Discard sit where a form puts
+        them, and the two view-level actions go in the cog menu. Only the table
+        in the middle is this module's own: one row per installed menu (the
+        tree), one column per role, and a degree in every cell.
+
+        The roles are picked from the table header's column control, with the
+        same markup a list view uses for its optional columns.
+    -->
+    <t t-name="kula_access_matrix.AccessMatrixBody">
+        <Layout display="props.display" className="'o_kam'">
+            <t t-set-slot="layout-buttons">
+                <button type="button" class="btn btn-primary"
+                        t-att-disabled="!dirty or state.saving" t-on-click="save">
+                    Save
+                    <span t-if="dirty" class="o_kam_count" t-esc="changes.length"/>
+                </button>
+                <button type="button" class="btn btn-secondary"
+                        t-att-disabled="!dirty or state.saving" t-on-click="discard">Discard</button>
+            </t>
+
+            <t t-set-slot="control-panel-additional-actions">
+                <div class="o_cp_action_menus d-flex align-items-center gap-1 pe-2">
+                    <div class="lh-1">
+                        <Dropdown menuClass="'lh-base'">
+                            <button class="d-print-none btn lh-sm p-0 border-0"
+                                    t-att-data-tooltip="tooltipActions" t-att-aria-label="tooltipActions">
+                                <i class="fa fa-fw fa-cog"/>
+                            </button>
+                            <t t-set-slot="content">
+                                <DropdownItem onSelected="() => this.expandAll()">
+                                    <i class="fa fa-fw fa-caret-down me-1"/>
+                                    <t t-esc="expandLabel"/>
+                                </DropdownItem>
+                                <DropdownItem onSelected="() => this.collapseAll()">
+                                    <i class="fa fa-fw fa-caret-right me-1"/>
+                                    <t t-esc="collapseLabel"/>
+                                </DropdownItem>
+                            </t>
+                        </Dropdown>
+                    </div>
+                </div>
+            </t>
+
+            <t t-set-slot="layout-actions">
+                <SearchBar/>
+            </t>
+
+            <!-- The table's own scroller, the way a list renders in one: the
+                 page does not scroll, this does, so the header row can stay put
+                 and the breadcrumb and the search bar never move. -->
+            <div class="o_kam_scroll">
+                <table class="o_kam_table table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="o_kam_menu_col">Menu</th>
+                        <th t-foreach="state.groups" t-as="group" t-key="group.id"
+                            class="o_kam_role_col" t-esc="group.name"/>
+                        <th class="o_kam_tools_col">
+                            <!-- Odoo's own optional-columns control, in the
+                                 header where a list view puts it: a tick per
+                                 role, grouped by the app the role belongs to. -->
+                            <div class="o_optional_columns_dropdown d-print-none text-center">
+                                <Dropdown position="'bottom-end'">
+                                    <button class="btn p-0" tabindex="-1"
+                                            t-att-data-tooltip="tooltipRoles">
+                                        <i class="o_optional_columns_dropdown_toggle oi oi-fw oi-settings-adjust"/>
+                                    </button>
+                                    <t t-set-slot="content">
+                                        <t t-foreach="roleChoices" t-as="choice" t-key="choice.privilege">
+                                            <div t-if="!choice_first" role="separator" class="dropdown-divider"/>
+                                            <DropdownItem closingMode="'none'">
+                                                <div class="fw-bold" t-esc="choice.privilege"/>
+                                            </DropdownItem>
+                                            <t t-foreach="choice.groups" t-as="candidate" t-key="candidate.id">
+                                                <DropdownItem closingMode="'none'"
+                                                              onSelected="() => this.toggleRole(candidate)">
+                                                    <CheckBox value="candidate.shown" name="candidate.id"
+                                                              onChange="() => this.toggleRole(candidate)">
+                                                        <span class="d-flex align-items-center">
+                                                            <span class="text-truncate" t-esc="candidate.name"/>
+                                                        </span>
+                                                    </CheckBox>
+                                                </DropdownItem>
+                                            </t>
+                                        </t>
+                                    </t>
+                                </Dropdown>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-if="state.loading">
+                        <td class="o_kam_message" t-att-colspan="2 + state.groups.length">Loading...</td>
+                    </tr>
+                    <tr t-elif="!state.groups.length">
+                        <td class="o_kam_message" t-att-colspan="2">
+                            No role is shown. Tick one in the column control of the header.
+                        </td>
+                    </tr>
+                    <tr t-elif="!visibleRows.length">
+                        <td class="o_kam_message" t-att-colspan="2 + state.groups.length">
+                            No menu matches the search.
+                        </td>
+                    </tr>
+                    <tr t-else="" t-foreach="visibleRows" t-as="row" t-key="row.node.id"
+                        t-att-class="{ 'o_kam_row': true, 'o_kam_row_dirty': dirtyMenuIds.has(row.node.id) }">
+                        <td class="o_kam_menu_col">
+                            <!-- The whole cell folds the branch, like the
+                                 workspace sidebar's rows: an 18px caret is a
+                                 small target on a page of 300 menus. The caret
+                                 stops the event so it toggles once. -->
+                            <div class="o_kam_menu"
+                                 t-att-class="{ 'o_kam_menu_foldable': row.node.children.length }"
+                                 t-att-style="'padding-left: ' + indent(row.depth)"
+                                 t-on-click="() => this.onToggle(row.node)">
+                                <span class="o_kam_caret"
+                                      t-on-click.stop="() => this.onToggle(row.node)">
+                                    <i t-if="row.node.children.length" class="fa"
+                                       t-att-class="folded(row.node) ? 'fa-caret-right' : 'fa-caret-down'"/>
+                                </span>
+                                <span class="o_kam_menu_name" t-esc="row.node.name"/>
+                                <!-- The model the degree acts on: absent for a
+                                     menu that only groups pages, where the
+                                     degree decides who sees the group. -->
+                                <span t-if="row.node.model" class="o_kam_model" t-esc="row.node.model"/>
+                            </div>
+                        </td>
+                        <td t-foreach="state.groups" t-as="group" t-key="group.id"
+                            t-att-class="{ 'o_kam_cell': true, 'o_kam_cell_dirty': cellDirty(row.node, group) }">
+                            <div class="o_kam_cell_inner">
+                                <!-- The degree the role has here today, and the
+                                     only degree this page can change: the
+                                     options the role already has from another
+                                     group are locked (the page only adds). -->
+                                <select class="o_kam_select"
+                                        t-att-class="'o_kam_level_' + cellLevel(row.node, group)"
+                                        t-att-data-tooltip="cellHelp(row.node, group)"
+                                        t-on-change="(ev) => this.onLevelChange(row.node, group, ev.target.value)">
+                                    <option t-foreach="levels" t-as="level" t-key="level"
+                                            t-if="levelApplicable(row.node, level)"
+                                            t-att-value="level"
+                                            t-att-selected="level === cellLevel(row.node, group)"
+                                            t-att-disabled="levelLocked(row.node, group, level)"
+                                            t-att-title="levelLocked(row.node, group, level) ? lockedHelp(row.node, group) : levelHelp(level)"
+                                            t-esc="levelLabel(level)"/>
+                                </select>
+                                <!-- The access is real but this page cannot be
+                                     reached: a menu above it is closed. -->
+                                <i t-if="cellBlocked(row.node, group)"
+                                   class="fa fa-ban o_kam_flag o_kam_flag_blocked"
+                                   t-att-data-tooltip="blockedHelp()"/>
+                            </div>
+                        </td>
+                        <td class="o_kam_tools_col"/>
+                    </tr>
+                </tbody>
+                </table>
+            </div>
+        </Layout>
+    </t>
+
+</templates>

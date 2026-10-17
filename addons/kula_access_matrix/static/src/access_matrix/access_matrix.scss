@@ -1,0 +1,215 @@
+// Part of the Odoo 19.0 Community series.
+// Copyright 2026 KULA
+// License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
+
+/**
+ * The Access Matrix table.
+ *
+ * The page's chrome is Odoo's (the control panel, the search bar, the breadcrumb
+ * title, the buttons), so this file styles one thing: the table in the middle.
+ * It is deliberately the *same* table a list view renders -- same control
+ * panel insets, same header (12px, uppercase, sunken, sticky), same row
+ * separator, same 14px cells -- because the page should read as one more list,
+ * not as a custom screen. The measurements are the ones the list renderer ends
+ * up with (taken off a live list).
+ *
+ * What is not a list, and therefore is this file's own:
+ *   - the fixed column control in the header, where a list view puts its
+ *     optional-columns dropdown;
+ *   - the tree: an indent guide, a caret, and the model name in monospace;
+ *   - a degree, readable at a glance -- the more it grants, the darker it is
+ *     (no access is a sunken box, read is Blue 100, read & write is Blue 700
+ *     with white text), so the table reads as a map rather than three hundred
+ *     identical dropdowns;
+ *   - the two honest markers (already granted elsewhere, still out of reach).
+ *
+ * Palette: the same Atlassian Design System tokens as the workspace theme
+ * (sidebar.scss and the theme/ files), as literal hexes -- this build defines
+ * no --o-* palette of its own.
+ */
+$o-kam-text-subtle: #44546f;
+$o-kam-border: #dcdfe4;
+$o-kam-border-soft: #f1f2f4;
+$o-kam-surface-hover: #f7f8f9;
+$o-kam-surface-sunken: #f1f2f4;
+$o-kam-brand: #0c66e4; // Blue 700
+$o-kam-brand-strong: #0055cc; // Blue 800
+$o-kam-brand-subtle: #e9f2ff; // Blue 100
+$o-kam-brand-subtle-border: #cce0ff; // Blue 200
+$o-kam-radius: 3px;
+
+// The page's own action manager, and only this page's (a client action renders
+// both the control panel and the content into it): two rows, the panel taking
+// the height it needs and the table taking the rest. Without this the content
+// keeps its own height and everything past the fold is simply unreachable.
+.o_action_manager:has(> .o_kam) {
+    display: flex;
+    flex-direction: column;
+}
+
+.o_kam {
+    // The table's half of that layout: it fills the row the panel left, and the
+    // table scrolls inside it -- so the breadcrumb, the buttons and the search
+    // bar never move, and the header row stays put while the tree is read.
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    .o_kam_scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .o_kam_table {
+        border-collapse: collapse;
+        font-size: 14px;
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            padding: 7px 4px 7px 12px;
+            border-bottom: 1px solid $o-kam-border;
+            background: $o-kam-surface-sunken;
+            color: $o-kam-text-subtle;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: left;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        tbody td {
+            padding: 5px 4px 5px 12px;
+            border-bottom: 1px solid $o-kam-border-soft;
+            vertical-align: middle;
+        }
+    }
+
+    .o_kam_message {
+        padding: 18px 12px;
+        color: $o-kam-text-subtle;
+        text-align: center;
+    }
+
+    .o_kam_menu_col {
+        width: 50%;
+    }
+
+    // The header's column control: narrow, and kept out of the way of the
+    // degrees, exactly like a list's own last header cell.
+    .o_kam_tools_col {
+        width: 44px;
+        padding-right: 8px;
+        text-align: center;
+    }
+
+    .o_kam_row:hover td {
+        background: $o-kam-surface-hover;
+    }
+
+    // A row with something unsaved in it: the marker is on the row so a change
+    // is still visible after the cell itself scrolls out of the way.
+    .o_kam_row_dirty > td {
+        background: $o-kam-brand-subtle;
+    }
+
+    .o_kam_menu {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    // The row's own fold: a branch that can open says so with the cursor.
+    .o_kam_menu_foldable {
+        cursor: pointer;
+    }
+
+    .o_kam_caret {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        color: $o-kam-text-subtle;
+        line-height: 18px;
+        text-align: center;
+    }
+
+    .o_kam_menu_foldable:hover .o_kam_caret {
+        color: $o-kam-brand-strong;
+    }
+
+    .o_kam_menu_name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .o_kam_model {
+        flex: 0 0 auto;
+        color: $o-kam-text-subtle;
+        font-family: monospace;
+        font-size: 11px;
+    }
+
+    // ----------------------------------------------------------------------- #
+    // A cell
+    // ----------------------------------------------------------------------- #
+    .o_kam_cell_inner {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .o_kam_select {
+        width: 122px;
+        padding: 2px 6px;
+        border: 1px solid $o-kam-border;
+        border-radius: $o-kam-radius;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .o_kam_level_none {
+        background: $o-kam-surface-sunken;
+        color: $o-kam-text-subtle;
+    }
+
+    .o_kam_level_read {
+        border-color: $o-kam-brand-subtle-border;
+        background: $o-kam-brand-subtle;
+        color: $o-kam-brand-strong;
+    }
+
+    .o_kam_level_write {
+        border-color: $o-kam-brand;
+        background: $o-kam-brand;
+        color: #fff;
+        font-weight: 600;
+    }
+
+    .o_kam_cell_dirty .o_kam_select {
+        box-shadow: 0 0 0 2px $o-kam-brand-subtle-border;
+    }
+
+    .o_kam_flag {
+        flex: 0 0 auto;
+        font-size: 12px;
+    }
+
+    .o_kam_flag_blocked {
+        color: $o-kam-text-subtle;
+    }
+
+    .o_kam_count {
+        display: inline-block;
+        min-width: 18px;
+        margin-left: 4px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.24);
+        font-size: 11px;
+        font-weight: 700;
+    }
+}
