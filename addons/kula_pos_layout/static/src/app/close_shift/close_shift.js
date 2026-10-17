@@ -1,10 +1,9 @@
-import { Component, onMounted, onWillStart, useState } from "@odoo/owl";
-import { Dialog } from "@web/core/dialog/dialog";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { AlertDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { Dialog } from "@web/core/dialog/dialog";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 import { ClosePosPopup } from "@point_of_sale/app/components/popups/closing_popup/closing_popup";
-import { LoginScreen } from "@point_of_sale/app/screens/login_screen/login_screen";
 import { Navbar } from "@point_of_sale/app/components/navbar/navbar";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
@@ -21,14 +20,17 @@ import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
  *
  *   * **Close Shift** -- this register closes; the store stays open, so another
  *     shift can be opened today (core's normal behaviour);
- *   * **Close Store** -- the shop closes: this register and every other counter
- *     still open (pos.session.kula_close_store, server side).
+ *   * **Close Store** -- the shop closes: every *other* register still open goes
+ *     down too (pos.session.kula_close_store, server side), then this one.
  *
- * Either answer ends on the register's login screen, as the issue asks. Both go
- * through core's closing form afterwards, so the cash count and the closing note
- * still happen and core still owns the closing: this dialog decides what is
- * being closed, nothing else. It answers its caller through `makeAwaitable`, the
- * same shape the Save Order popup uses.
+ * Either answer ends logged out, on Odoo's own login page -- not on the
+ * register's Unlock screen, which the next person could walk straight through.
+ * That is `/web/session/logout?redirect=/web/login`, core's own logout route.
+ *
+ * Both answers go through core's closing form afterwards, so the cash count and
+ * the closing note still happen and core still owns the closing: this dialog
+ * decides what is being closed, nothing else. It answers its caller through
+ * `makeAwaitable`, the same shape the Save Order popup uses.
  */
 export class KulaCloseShiftPopup extends Component {
     static template = "kula_pos_layout.CloseShiftPopup";
@@ -89,6 +91,13 @@ patch(Navbar.prototype, {
      * service is the navbar's, and because only the *entry* is confirmed:
      * `pos.closeSession()` is also reached from inside the closing form itself
      * (Cash In/Out), and a second confirmation there would be noise.
+     *
+     * The shop's other registers are closed *here*, before the closing form of
+     * this one, for one reason: the form ends with core's redirect and then the
+     * logout, and a list of registers that refused to close cannot be shown
+     * after that. Closing the shop is what the operator just asked for, so the
+     * other registers go down first and this register follows with the usual
+     * cash count and note.
      */
     async kulaCloseRegister() {
         const payload = await makeAwaitable(this.dialog, KulaCloseShiftPopup, {
@@ -98,41 +107,58 @@ patch(Navbar.prototype, {
             // Dismissed: the register stays exactly as it was.
             return;
         }
-        this.pos.kulaCloseStore = payload.closeStore;
+        if (payload.closeStore) {
+            const result = await this.pos.kulaCloseStore();
+            if (result.failed.length) {
+                await new Promise((resolve) => {
+                    this.dialog.add(
+                        AlertDialog,
+                        {
+                            title: _t("Some registers stayed open"),
+                            body: _t(
+                                "These registers could not be closed: %s",
+                                result.failed.join(", ")
+                            ),
+                        },
+                        { onClose: resolve }
+                    );
+                });
+            }
+        }
         this.pos.closeSession();
     },
 });
 
-/** Where a "Close Store" leaves the registers it could not close. */
-const STORE_CLOSE_FAILURES = "kula.store_close_failures";
-
 patch(PosStore.prototype, {
-    /** Set by the confirmation: also close the shop's other registers. */
-    kulaCloseStore: false,
-
     /**
      * Close every other register the shop still has open (kula_close_store).
      *
-     * Best effort, and after the operator's own register is already closed: the
-     * shop is closing, and a register that refuses (draft orders, a session
-     * another cashier is mid-way through closing) must not keep this one open.
-     * Whatever refused comes back by name, and the caller carries it to the one
-     * screen that survives this flow.
+     * Best effort: a register that refuses (draft orders left on it, a session
+     * another cashier is mid-way through closing) is reported by name and does
+     * not stop the others, because the shop is closing and one counter cannot
+     * be allowed to hold the day open. The caller shows the names.
      */
-    async kulaCloseOtherRegisters() {
+    async kulaCloseStore() {
         try {
             return await this.data.call("pos.session", "kula_close_store", [[this.session.id]]);
         } catch (error) {
             // The shop is closing either way: a register that cannot even be
-            // asked about is reported like one that refused, and the operator
-            // still leaves the register.
+            // asked about is reported like one that refused.
             return { closed: [], failed: [error.message || String(error)] };
         }
     },
 
-    /** The register's login screen, which is where a closed shift ends. */
-    kulaLeaveToLogin() {
-        window.location.replace(`/pos/ui/${odoo.pos_config_id}/login`);
+    /**
+     * A real logout, on Odoo's login page.
+     *
+     * The register's own Unlock screen is not a login: it is one tap away from
+     * the till, so "close the shift" would end with the next person selling
+     * without a password. `/web/session/logout` is core's own logout route
+     * (user menu); `redirect` is where it sends the browser after destroying
+     * the session.
+     */
+    kulaLogout() {
+        window.location.href = "/web/session/logout?redirect=/web/login";
     },
 });
 
@@ -141,10 +167,8 @@ patch(ClosePosPopup.prototype, {
      * What happens after a register has actually closed.
      *
      * Core's own close ends on `pos.router.close()`, i.e. `/pos/ui/<config>`,
-     * which the login screen then takes over because no session is open. The
-     * extra step here is the store (the other registers), and landing on the
-     * login route explicitly rather than on whatever the loader happens to do
-     * with a config that has no open session.
+     * where the register would offer "Open Register" again. The logout replaces
+     * that destination with Odoo's login page.
      *
      * Guarded on `session.state === "closed"`: the base method also returns
      * after a failed close -- a closing error, a wizard, a rejected cash count
@@ -155,41 +179,6 @@ patch(ClosePosPopup.prototype, {
         if (this.pos.session?.state !== "closed") {
             return;
         }
-        if (this.pos.kulaCloseStore) {
-            this.pos.kulaCloseStore = false;
-            const result = await this.pos.kulaCloseOtherRegisters();
-            if (result.failed.length) {
-                // Core's close has already sent this page to `/pos/ui/<config>`,
-                // so a dialog opened here would be destroyed by that navigation.
-                // The list rides to the login screen instead: see the LoginScreen
-                // patch below.
-                sessionStorage.setItem(STORE_CLOSE_FAILURES, JSON.stringify(result.failed));
-            }
-        }
-        this.pos.kulaLeaveToLogin();
-    },
-});
-
-patch(LoginScreen.prototype, {
-    /**
-     * The one screen a "Close Store" can still be honest on.
-     *
-     * The closing flow ends with a page navigation, and both a dialog and a
-     * notification die with it. This is where the operator actually lands, so
-     * the registers that refused to close are reported here, once.
-     */
-    setup() {
-        super.setup();
-        onMounted(() => {
-            const failures = JSON.parse(sessionStorage.getItem(STORE_CLOSE_FAILURES) || "null");
-            if (!failures) {
-                return;
-            }
-            sessionStorage.removeItem(STORE_CLOSE_FAILURES);
-            this.dialog.add(AlertDialog, {
-                title: _t("Some registers stayed open"),
-                body: _t("These registers could not be closed: %s", failures.join(", ")),
-            });
-        });
+        this.pos.kulaLogout();
     },
 });

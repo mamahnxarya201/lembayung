@@ -1178,13 +1178,16 @@ read zero. Core's closing form still follows — cash count, closing note, `Clos
 the cash count must not be skipped.
 
 After a close that actually happened (`ClosePosPopup.closeSession` patched, guarded on
-`pos.session.state === "closed"` so failures keep the operator on the register), the client closes the
-shop if that was the answer, then lands on `/pos/ui/<config>/login`.
+`pos.session.state === "closed"` so failures keep the operator on the register), the operator is
+**logged out to Odoo's login page**: `/web/session/logout?redirect=/web/login`, core's own logout
+route, not the register's Unlock screen — one tap from the till is not a login, and the next person
+would be selling without a password.
 
-A register that refuses to close is reported **on the login screen**, not in the register: core's own
-close ends with a page navigation, and both a dialog and a notification die with it — an `AlertDialog`
-added after `super.closeSession()` was verified to never be seen. The names ride across in
-`sessionStorage` and a small `LoginScreen` patch (same file) shows them once, then clears them.
+**Close Store closes the shop before this register, not after.** Core's close ends with a redirect and
+then the logout, so a list of registers that refused to close cannot be shown afterwards (an
+`AlertDialog` added after `super.closeSession()` was verified to be destroyed by that navigation). The
+other registers are therefore closed as soon as the operator picks Close Store, the refusals are a
+dialog on the spot, and this register's own closing form follows.
 
 ### 19.3 Close Store = the other registers
 
@@ -1209,9 +1212,10 @@ every run:
 |---|---|
 | Close Register | dialog titled `Close shift?`, question, `Close Shift` / `Close Store` / `Cancel`, summary line `Kula Counter — 1 order, Rp 10,000` |
 | Cancel | dialog gone, register intact, session still `opened`, nothing sent |
-| **Close Shift** (a second register open) | core's closing form → session `closed` → `/pos/ui/1/login`; the other register still `opened`; `kula_close_store` **not** called |
-| **Close Store** (a second register open) | same, plus a `pos.session/kula_close_store` call; **both** sessions `closed` at the same timestamp |
-| **Close Store** with a register that refuses (a draft order on it) | that register stays `opened`, and the login screen shows *Some registers stayed open* naming it and the reason |
+| **Close Shift** (a second register open) | core's closing form → session `closed` → `/web/login`; the other register still `opened`; `kula_close_store` **not** called |
+| **Close Store** (a second register open) | a `pos.session/kula_close_store` call first; **both** sessions `closed` (the other one first), then `/web/login` |
+| **Close Store** with a register that refuses (a draft order on it) | that register stays `opened`, the register shows *Some registers stayed open* naming it and the reason, and the flow continues |
+| Either answer | ends on `/web/login` (Odoo's login form), with the session destroyed |
 | Closing the seeded day | produced `POSS/2026/10/0001`, posted, Rp 148,000 — the branch §19.1 says would otherwise be skipped |
 
 The second register was a throwaway `pos.config` created for the test and removed afterwards (its
@@ -1219,9 +1223,10 @@ sessions deleted; the one throwaway sale used to check the summary line was remo
 the ORM refuses to delete a paid order — see the backlog recipe).
 
 Stills, `.amp/in/artifacts/` (orb-local, git-ignored): `44-confirm-close-shift.png` (the dialog),
-`45-closing-form-shift.png` (core's form behind it), `46-after-close-shift.png` (the login screen it
-ends on), `47-confirm-with-sales.png` (the summary line with a sale in the session) and
-`48-close-store-failure.png` (the register that refused, named on the login screen).
+`45-closing-form-shift.png` (core's form behind it), `47-confirm-with-sales.png` (the summary line with
+a sale in the session), `53-close-store-refusal.png` (the register that refused, named on the spot,
+followed by `54-closing-form-after-refusal.png`) and `52-web-login-after-close.png` (Odoo's login page
+it ends on).
 
 One piece of core behaviour worth knowing: after a close, loading the register again creates an
 `opening_control` session for the config by itself, so the "Open Register" screen has something to
