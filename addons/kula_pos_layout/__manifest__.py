@@ -33,7 +33,8 @@ and keeps it usable on any tablet regardless of resolution or orientation.
   the (⋯) popup.
 * **Closing the register** is a question with two answers: *Close Shift* closes
   this register, *Close Store* closes the shop as well (every other register
-  still open). Either way the operator is logged out to Odoo's own login page,
+  still open) — and neither answer is available while an order is still unpaid,
+  named one by one on the spot. Either way the operator is logged out to Odoo's own login page,
   and either way the closing itself is still core's: cash count, closing note,
   and the day's account move. A cashier or barista can close at all — core's closing
   API asks for `point_of_sale.group_pos_user`, which the kiosk roles deliberately

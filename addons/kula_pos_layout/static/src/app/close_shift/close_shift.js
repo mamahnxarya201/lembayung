@@ -83,6 +83,26 @@ export class KulaCloseShiftPopup extends Component {
     }
 }
 
+/**
+ * "These still have to be paid": the dialog that stops a close before it starts.
+ *
+ * Core has the same rule (`_cannot_close_session`), but it enforces it inside
+ * the closing form, after the cash count; here it is the first thing the
+ * operator meets, and the orders are named so there is something to act on.
+ */
+function kulaUnpaidOrdersDialog(dialog, opening, orders) {
+    return new Promise((resolve) => {
+        dialog.add(
+            AlertDialog,
+            {
+                title: _t("Orders still unpaid"),
+                body: `${opening}\n\n${orders.join("\n")}`,
+            },
+            { onClose: resolve }
+        );
+    });
+}
+
 patch(Navbar.prototype, {
     /**
      * The burger menu's Close Register entry, with the confirmation in front.
@@ -100,6 +120,24 @@ patch(Navbar.prototype, {
      * cash count and note.
      */
     async kulaCloseRegister() {
+        // Every order has to be paid first -- this register's, and, for a Close
+        // Store, every other register's too. Core would refuse later, inside the
+        // closing form; here the operator is told before filling it in.
+        const closingMessage = _t("Every order has to be paid before this shift can be closed.");
+        // The cart first: an unsynced order is not in kula_unpaid_orders yet
+        // (nothing has written it to the database), and it is the most common
+        // unpaid order there is -- the one on screen.
+        const cart = this.pos.kulaCartLine();
+        if (cart) {
+            await kulaUnpaidOrdersDialog(this.dialog, closingMessage, [cart]);
+            return;
+        }
+        const unpaid = await this.pos.kulaUnpaidOrders();
+        if (unpaid.length) {
+            await kulaUnpaidOrdersDialog(this.dialog, closingMessage, unpaid);
+            return;
+        }
+
         const payload = await makeAwaitable(this.dialog, KulaCloseShiftPopup, {
             register: this.pos.config.name,
         });
@@ -108,8 +146,21 @@ patch(Navbar.prototype, {
             return;
         }
         if (payload.closeStore) {
+            const shopUnpaid = await this.pos.kulaUnpaidOrders(true);
+            if (shopUnpaid.length) {
+                await kulaUnpaidOrdersDialog(
+                    this.dialog,
+                    _t("Every order has to be paid before the store can be closed."),
+                    shopUnpaid
+                );
+                return;
+            }
             const result = await this.pos.kulaCloseStore();
-            if (result.failed.length) {
+            // `failed` is a register that refused to close, `blocked` is one
+            // that may not be closed yet (an unpaid order appeared on it between
+            // the check above and the call): both are worth naming.
+            const refused = [...result.failed, ...result.blocked];
+            if (refused.length) {
                 await new Promise((resolve) => {
                     this.dialog.add(
                         AlertDialog,
@@ -117,7 +168,7 @@ patch(Navbar.prototype, {
                             title: _t("Some registers stayed open"),
                             body: _t(
                                 "These registers could not be closed: %s",
-                                result.failed.join(", ")
+                                refused.join(", ")
                             ),
                         },
                         { onClose: resolve }
@@ -130,6 +181,44 @@ patch(Navbar.prototype, {
 });
 
 patch(PosStore.prototype, {
+    /**
+     * The order in the cart, as one line, when it still has anything on it.
+     *
+     * The complement of kula_unpaid_orders: that one asks the database, and an
+     * order the cashier has just been ringing up is not there yet. An empty or
+     * already-paid cart answers "" so nothing blocks a normal close.
+     */
+    kulaCartLine() {
+        const order = this.getOrder();
+        if (!order || order.isEmpty() || order.finalized) {
+            return "";
+        }
+        // "/" is what an order the register has not written yet is called.
+        const title = order.kula_title || order.name;
+        const label = title && title !== "/" ? title : _t("Unpaid order");
+        return `${this.config.name} — ${label} — ${order.currencyDisplayPriceIncl}`;
+    },
+
+    /**
+     * The orders that still have to be paid, as lines the operator can act on.
+     *
+     * `wholeStore` asks for every register still open instead of this one, which
+     * is the question a Close Store has to answer first. A failure answers
+     * "nothing unpaid" on purpose: core's own check inside the closing form is
+     * still there, and a probe that cannot run must not lock the operator out of
+     * the register.
+     */
+    async kulaUnpaidOrders(wholeStore = false) {
+        try {
+            return await this.data.call("pos.session", "kula_unpaid_orders", [
+                [this.session.id],
+                wholeStore,
+            ]);
+        } catch {
+            return [];
+        }
+    },
+
     /**
      * Close every other register the shop still has open (kula_close_store).
      *

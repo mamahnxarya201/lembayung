@@ -1189,7 +1189,38 @@ then the logout, so a list of registers that refused to close cannot be shown af
 other registers are therefore closed as soon as the operator picks Close Store, the refusals are a
 dialog on the spot, and this register's own closing form follows.
 
-### 19.3 Close Store = the other registers
+### 19.3 Every order has to be paid first
+
+Commanded: *"if there's unclosed order they cant close store they cant close shift. all order must been
+paid before they can close shift or store"*.
+
+Core has the same rule — `_cannot_close_session` answers *"You cannot close the POS while there are
+still draft orders for the day."* — but it fires inside the closing form, after the cash count: the
+operator fills the form in and is refused at the end of it. The check therefore runs at the front of
+this flow instead:
+
+| Scope | When | What it stops |
+|---|---|---|
+| this register — `kula_unpaid_orders()` | the moment Close Register is pressed | the confirmation itself: no dialog, no form |
+| the whole shop — `kula_unpaid_orders(whole_store=True)` | after Close Store is chosen | the store close: nothing closes, and the orders are named |
+
+A **draft `pos.order` is an unpaid order**: the cart, a parked order (Save Order), an order planned
+for later. Two checks, because one of them is not in the database yet:
+
+* `pos.kulaCartLine()` — the order on screen, when it has anything on it. It is unsynced, so no
+  server query can see it, and it is the unpaid order an operator meets most often;
+* `kula_unpaid_orders()` — every draft order the session has, and, for Close Store, every draft order
+  the shop's open registers have.
+
+The dialog lists them by counter, title (the Save Order title when there is one, "Unpaid order" when
+the register has not written a name yet) and amount — "pay your orders first" is not actionable on its
+own. Paying or cancelling clears the line: a cancelled order is not a draft, and a paid one is not
+either.
+
+`kula_close_store()` enforces the same rule server-side (it answers `blocked` and closes nothing), so
+the shop cannot be closed around the dialog with a hand-made RPC.
+
+### 19.4 Close Store = the other registers
 
 `pos.session.kula_close_store()` closes every *other* register of the company: `opening_control`,
 `opened` or `closing_control`. The caller's own register is excluded — it is already closed by the
@@ -1203,7 +1234,7 @@ shop; the behaviour is what a second counter would need. **This is the one inter
 section worth confirming with the owner**: "close the store" could also mean *block reopening until
 tomorrow*, which would be a new state on `pos.config`, and that was not asked for.
 
-### 19.4 Verified
+### 19.5 Verified
 
 Playwright against the orb's Chrome, 1024×768, DPR 2, cashier `cashier@kula.example`, JS errors 0 in
 every run:
@@ -1211,6 +1242,9 @@ every run:
 | Run | Result |
 |---|---|
 | Close Register | dialog titled `Close shift?`, question, `Close Shift` / `Close Store` / `Cancel`, summary line `Kula Counter — 1 order, Rp 10,000` |
+| Close Register with an unpaid order on the register | *Orders still unpaid* names it (counter, title, amount); no confirmation, no closing form |
+| Close Register with something in the cart (unsynced) | same dialog, line `Kula Counter — Unpaid order — Rp 10,000` |
+| Close Store with an unpaid order on another register | *Orders still unpaid* names it; **neither** register closes |
 | Cancel | dialog gone, register intact, session still `opened`, nothing sent |
 | **Close Shift** (a second register open) | core's closing form → session `closed` → `/web/login`; the other register still `opened`; `kula_close_store` **not** called |
 | **Close Store** (a second register open) | a `pos.session/kula_close_store` call first; **both** sessions `closed` (the other one first), then `/web/login` |
@@ -1225,14 +1259,15 @@ the ORM refuses to delete a paid order — see the backlog recipe).
 Stills, `.amp/in/artifacts/` (orb-local, git-ignored): `44-confirm-close-shift.png` (the dialog),
 `45-closing-form-shift.png` (core's form behind it), `47-confirm-with-sales.png` (the summary line with
 a sale in the session), `53-close-store-refusal.png` (the register that refused, named on the spot,
-followed by `54-closing-form-after-refusal.png`) and `52-web-login-after-close.png` (Odoo's login page
-it ends on).
+followed by `54-closing-form-after-refusal.png`), `56-unpaid-order-blocks-shift.png` (an unpaid order
+stopping the shift), `57-unpaid-order-blocks-store.png` (an unpaid order on another register stopping
+the store), `59-cart-blocks-close.png` (a cart with one kopi on it stopping the shift) and `52-web-login-after-close.png` (Odoo's login page it ends on).
 
 One piece of core behaviour worth knowing: after a close, loading the register again creates an
 `opening_control` session for the config by itself, so the "Open Register" screen has something to
 open. It is not this module's doing, and `kula_close_store` treats it as open.
 
-### 19.5 Two XML traps, again
+### 19.6 Two XML traps, again
 
 Both were hit while writing §19.2, and both fail as "the whole register shows nothing":
 

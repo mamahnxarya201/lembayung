@@ -61,19 +61,59 @@ class PosSession(models.Model):
             bank_payment_method_diff_pairs
         )
 
+    def kula_unpaid_orders(self, whole_store=False):
+        """The orders that must be paid before a shift (or the store) can close.
+
+        One readable line per order. Core already refuses to close a session that
+        still has draft orders (`_cannot_close_session`: "You cannot close the
+        POS while there are still draft orders for the day."), but that refusal
+        comes *after* the operator has filled in the closing form; the
+        confirmation asks first, so the orders are named here instead.
+
+        `whole_store` widens the question to every register still open, which is
+        what the Close Store answer needs: a shop cannot close while another
+        counter still has an order to settle.
+        """
+        self.ensure_one()
+        if not whole_store:
+            return self._kula_unpaid_order_lines(self)
+        sessions = self.search(
+            [
+                ("company_id", "=", self.company_id.id),
+                ("state", "in", ("opening_control", "opened", "closing_control")),
+            ]
+        )
+        return self._kula_unpaid_order_lines(sessions)
+
+    def _kula_unpaid_order_lines(self, sessions):
+        """A draft order is an unpaid order: it is what blocks the close."""
+        lines = []
+        for session in sessions:
+            for order in session.order_ids.filtered(lambda order: order.state == "draft"):
+                # "/" is the name of an order that has not been written by the
+                # register yet; "Unpaid order" reads better than a slash.
+                title = order.kula_title or order.name
+                if not title or title == "/":
+                    title = _("Unpaid order")
+                lines.append(
+                    f"{session.config_id.name} — {title} — "
+                    f"{session.currency_id.format(order.amount_total)}"
+                )
+        return lines
+
     def kula_close_store(self):
         """Close the shop: every *other* register that is still open.
 
         The "Close Store" answer of the register's confirmation (issue #4). The
-        register the operator is standing at is already closed by the time this
-        runs -- the client closes it through core's closing form, then asks for
-        the rest of the shop -- so this one is deliberately excluded.
+        register the operator is standing at is closed through core's closing
+        form, so this one is deliberately excluded.
 
-        Best effort per register: a counter that refuses (draft orders left on
-        it, a session another cashier is mid-way through closing) is reported
-        back by name instead of stopping the others, because the shop is closing
-        and one register cannot be allowed to hold the day open. The caller
-        shows the names before the operator is logged out.
+        Refused outright while any *other* register still has an unpaid order:
+        the answer then carries those in `blocked` and nothing is closed, because
+        "the store closes" cannot be true while a counter still has money to
+        take. Past that, best effort per register -- a session another cashier is
+        mid-way through closing is reported in `failed` instead of stopping the
+        others.
 
         `opening_control` counts as open: it is the session the register creates
         for itself on load, before anyone has confirmed the opening cash, and a
@@ -94,6 +134,9 @@ class PosSession(models.Model):
                 ("state", "in", ("opening_control", "opened", "closing_control")),
             ]
         )
+        blocked = self._kula_unpaid_order_lines(others)
+        if blocked:
+            return {"closed": [], "failed": [], "blocked": blocked}
         for session in others:
             try:
                 session._kula_closing_record().action_pos_session_closing_control()
