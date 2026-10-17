@@ -3,8 +3,8 @@
 One file per menu item and per POS category, named after the record:
 `products/<slug>.png` for a `product.template` (the names in `menu.csv`) and
 `categories/<slug>.png` for a `pos.category`. The slug is the name lower-cased
-with every run of non-alphanumerics turned into `-` — `Es Teh` is
-`es-teh.png`, `Cup Take Away` is `cup-take-away.png`.
+with every run of non-alphanumerics turned into `-` — `Original Cold Brew` is
+`original-cold-brew.png`, `Take Away Plastik` is `take-away-plastik.png`.
 
 `seed/seed.py` uploads them (`upload_menu_image`): a file is applied to a record
 that has **no** image yet, and never to a record that already has one. That is
@@ -23,11 +23,13 @@ with:
 
 ```bash
 magick -size 512x512 xc:"#6F4E37" \
-  \( -background none -fill white -font DejaVu-Sans-Bold -pointsize 88 \
+  \( -background none -fill white -font DejaVu-Sans-Bold -pointsize 64 \
      -size 440x440 -gravity center caption:"New Item" \) \
   -gravity center -composite seed/images/products/new-item.png
 ```
 
-The category colours: Coffee `#6F4E37`, Tea `#2E7D5B`, Juice `#D98324`,
-Add On `#5B4BC4` — the same indigo the register's Add on tile uses, so the
-picture and the tile read as one thing.
+The category colours: Cold Brew Based `#40566D`, Espresso Based `#6F4E37`,
+Manual Brew `#8A5A35`, Kopi Robusta `#4E342E`, Tea Based `#2E7D5B`,
+Milk Based `#C08A5A`, Wedang `#B35C37`, Add On `#5B4BC4` — the same indigo the
+register's Add on tile uses, so the picture and the tile read as one thing.
+Products take the colour of their category.

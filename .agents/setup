@@ -524,10 +524,9 @@ write_orb_notes() {
   `python3 seed/seed.py --password admin --apply` (dry run without `--apply`).
   It seeds the company (Kula, Jakarta, IDR), the owner / cashier / barista
   logins and their employees in the Counter department, the menu (categories
-  Coffee / Tea / Juice / Add On, products Kopi 10 000 / Es Teh 5 000 / Sinom
-  7 000, and the add-ons the kiosk's Add on tile lists -- Extra Shot, Es Batu,
-  Sambal Bawang, Telor, Sego Tok, Cup Take Away; docs/pos-layout-backlog.md P1
-  names the first three), a picture per menu item and category from
+  Cold Brew Based / Espresso Based / Manual Brew / Kopi Robusta / Tea Based /
+  Milk Based / Wedang, plus the Add On category that holds the kiosk's
+  take-away plastic charge), a picture per menu item and category from
   `seed/images/` (a generated placeholder, uploaded only when the record has
   none, so a real photo survives a re-seed), the register's layout (kiosk
   home + add-on category), the pantry with its on-hand stock, and a day of

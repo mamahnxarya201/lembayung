@@ -92,7 +92,7 @@ What it writes is one small cafe — the scenario this repo is built for:
 | `company.csv` | the trading name and address (the receipt header) |
 | `employees.csv`, `users.csv` | owner, cashier and barista: an employee and a login each |
 | `departments.csv` | the department they sit in, and who runs it |
-| `menu.csv` | what the counter sells: POS category and price (including the add-ons) |
+| `menu.csv` | what the counter sells: POS category, price, description, temperature tag and best-seller star (including the add-ons) |
 | `images/` | one picture per menu item and category — generated placeholders |
 | `inventory.csv` | the pantry behind the menu: cost and quantity on hand |
 | `sales.csv` | a day of takings: one shift, its orders, their times and payment |

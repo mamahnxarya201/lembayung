@@ -18,7 +18,8 @@ came in, who works here -- so they are the three axes the files cover:
     departments.csv  which departments exist for this shop, and who runs them
     employees.csv    the people: badge number, name, job, contact, wage, manager
     users.csv        one login per person, and the role that login holds
-    menu.csv         what the counter sells: POS category and price
+    menu.csv         what the counter sells: POS category, price, description,
+                     serving temperature and whether it is a best seller
     images/          one picture per menu item and category (placeholders)
     inventory.csv    what the menu is made from: cost and quantity on hand
     sales.csv        one day of takings: the orders, their lines and their times
@@ -71,10 +72,30 @@ SEED_MODULES = ["kula_security"]
 # is a day of *its* sessions. Created only when the database has no config.
 COUNTER_CONFIG = "Kula Counter"
 
-# The add-ons: the menu's second tier (extra shot, take-away cup). One category
-# holds them, and the register's "Add on" tile is built from it -- which is why
-# this name is a constant and not just another row in menu.csv.
+# The add-ons: the menu's second tier (the take-away plastic charge). One
+# category holds them, and the register's "Add on" tile is built from it -- which
+# is why this name is a constant and not just another row in menu.csv.
 ADDON_CATEGORY = "Add On"
+
+# menu.csv's `temperature` column becomes a product tag, so the serving
+# temperature is visible in the backend even though no product variant is made
+# for it. The menu's hot/ice items are the ones the counter can serve either way.
+TEMPERATURE_TAGS = {
+    "hot": "Hot",
+    "ice": "Ice",
+    "hot/ice": "Hot / Ice",
+}
+
+# One-time migration: the menu the CSVs carried before the printed card. Editing
+# menu.csv stops a row being seeded, but a database that already has it keeps it
+# -- and the register keeps selling it. These names are retired on every run, so
+# an already-seeded database stops showing the old menu. Drop this list once
+# every seeded database has been re-seeded with the card's menu.
+RETIRED_MENU_PRODUCTS = [
+    "Kopi", "Es Teh", "Sinom",
+    "Extra Shot", "Es Batu", "Sambal Bawang", "Telor", "Sego Tok", "Cup Take Away",
+]
+RETIRED_MENU_CATEGORIES = ["Coffee", "Tea", "Juice"]
 
 # Placeholder pictures for the menu, one file per product and per category,
 # named after the record (see upload_menu_image).
@@ -358,6 +379,46 @@ def validate_sales(sales, menu):
         sys.exit(1)
 
 
+def validate_menu(menu):
+    """Cross-check the menu before anything is written.
+
+    A category typo or a price that is not a whole rupiah would otherwise reach
+    Odoo as a product with the wrong shape. The take-away plastic charge is the
+    reason the Add On category is required: the register's Add on tile is built
+    from it, and no menu item may land outside a category.
+    """
+    problems = []
+    names = [r["name"] for r in menu]
+    dupes = {name for name in names if names.count(name) > 1}
+    if dupes:
+        problems.append(f"duplicate product name: {sorted(dupes)}")
+    if ADDON_CATEGORY not in {r["pos_category"] for r in menu}:
+        problems.append(f"no {ADDON_CATEGORY!r} category row")
+
+    for r in menu:
+        tag = f"{r['name'] or '<unnamed>'!r}"
+        if not r["name"]:
+            problems.append("a menu row has no name")
+        if not r["pos_category"]:
+            problems.append(f"{tag}: POS category is required")
+        try:
+            if int(r["price"]) < 0:
+                problems.append(f"{tag}: price must not be negative")
+        except ValueError:
+            problems.append(f"{tag}: price {r['price']!r} is not a whole number")
+        if r["temperature"].lower() not in {*TEMPERATURE_TAGS, ""}:
+            problems.append(f"{tag}: unknown temperature {r['temperature']!r} "
+                            f"(expected {', '.join(sorted(TEMPERATURE_TAGS))} or empty)")
+        if r["best_seller"].lower() not in {"yes", "no"}:
+            problems.append(f"{tag}: best_seller {r['best_seller']!r} is not yes/no")
+
+    if problems:
+        print("MENU VALIDATION FAILED -- no changes made:", file=sys.stderr)
+        for p in problems:
+            print(f"  - {p}", file=sys.stderr)
+        sys.exit(1)
+
+
 def resolve_groups(o, xmlids):
     """Map 'module.name' group xmlids to res.groups ids, failing loudly."""
     out = {}
@@ -563,6 +624,56 @@ def step_users(o, rep, rows, emp_names, emp_ids):
             rep.add("group grants", "already-set")
 
 
+def retire_old_menu(o, rep):
+    """Take the previous seed's menu off the till, on a database that has it.
+
+    A product is archived rather than deleted: a paid pos.order line points at
+    it, and Odoo refuses to unlink a product with history. Archiving takes it
+    out of the register (`available_in_pos` and `active` both go false), which
+    is what "no longer sold" means here. The old categories are then empty and
+    are deleted, unless a register session is open -- Odoo refuses to unlink a
+    POS category while one is, and an empty category does not show on the kiosk
+    anyway (core filters out categories with no products).
+    """
+    for name in RETIRED_MENU_PRODUCTS:
+        ids = o.search("product.template", [("name", "=", name)], active=False)
+        if not ids:
+            continue
+        fields = o.call("product.template", "read",
+                        [ids, ["available_in_pos", "sale_ok", "active", "pos_categ_ids"]])
+        stale = [row for row in fields
+                 if row["available_in_pos"] or row["sale_ok"] or row["active"]
+                 or row["pos_categ_ids"]]
+        if not stale:
+            rep.add("retired menu products", "already-retired", len(ids))
+            continue
+        if o.apply:
+            o.call("product.template", "write", [ids, {
+                "pos_categ_ids": [(5, 0, 0)],
+                "available_in_pos": False,
+                "sale_ok": False,
+                "active": False,
+            }])
+        rep.add("retired menu products", "archived" if o.apply else "would-archive", len(stale))
+
+    for name in RETIRED_MENU_CATEGORIES:
+        ids = o.search("pos.category", [("name", "=", name)])
+        if not ids:
+            continue
+        if not o.apply:
+            rep.add("retired menu categories", "would-delete", len(ids))
+            continue
+        try:
+            o.call("pos.category", "unlink", [ids])
+            rep.add("retired menu categories", "deleted", len(ids))
+        except xmlrpc.client.Fault as exc:
+            if "while a session is still opened" not in str(exc):
+                raise
+            rep.add("retired menu categories", "kept (open session)", len(ids))
+            print(f"  note: {name} is empty but could not be deleted while a register "
+                  "session is open; the kiosk does not show it")
+
+
 def step_menu(o, rep, rows):
     """The counter's menu: a product per row, filed under its POS category.
 
@@ -575,27 +686,48 @@ def step_menu(o, rep, rows):
     The POS category column is a contract, not a convenience: the register opens
     on a grid of category tiles, so a product with no category has no tile to be
     tapped and cannot be sold. The categories are created from that same column,
-    which is why `menu.csv` is the only place a menu item has to be registered.
+    in first-appearance order, which is why `menu.csv` is the only place a menu
+    item has to be registered. `sequence` and `pos_sequence` preserve the order
+    the menu is printed in, rather than letting Odoo fall back to the alphabet.
+
+    The menu's other columns are presentation, not inventory: `description`
+    becomes `public_description` (the product popup on the register shows it),
+    `best_seller` becomes `is_favorite` (the star Odoo already renders), and
+    `temperature` becomes a product tag -- a tag rather than a variant, so hot
+    and iced drinks stay one product at one price.
 
     Each product and category is also given a picture, when it has none yet and
     a file for it exists under seed/images/. Pictures are optional and never
     overwritten -- see upload_menu_image.
     """
+    category_names = list(dict.fromkeys(r["pos_category"] for r in rows))
     cat_ids = {}
-    for name in sorted({r["pos_category"] for r in rows}):
-        rid, st = o.ensure("pos.category", {"name": name}, {})
+    for index, name in enumerate(category_names, start=1):
+        rid, st = o.ensure("pos.category", {"name": name}, {"sequence": index * 10})
         cat_ids[name] = rid
         rep.add("menu categories", st)
         upload_menu_image(o, rep, "pos.category", rid, "image_512",
                           f"categories/{slug(name)}.png")
 
+    tag_ids = {}
+    for label in sorted({TEMPERATURE_TAGS[r["temperature"].lower()]
+                         for r in rows if r["temperature"]}):
+        rid, _st = o.ensure("product.tag", {"name": label}, {})
+        tag_ids[label] = rid
+
     ids = {}
-    for r in rows:
+    for index, r in enumerate(rows, start=1):
+        tags = [tag_ids[TEMPERATURE_TAGS[r["temperature"].lower()]]] if r["temperature"] else []
         tmpl, st = o.ensure("product.template", {"name": r["name"]}, {
             "type": "consu",
             "list_price": float(r["price"]),
             "available_in_pos": True,
+            "sale_ok": True,
+            "public_description": r["description"] or False,
+            "is_favorite": r["best_seller"].lower() == "yes",
+            "pos_sequence": index * 10,
             "pos_categ_ids": [(6, 0, [cat_ids[r["pos_category"]]])],
+            "product_tag_ids": [(6, 0, tags)],
             "taxes_id": [(6, 0, [])],
         })
         rep.add("menu products", st)
@@ -1037,9 +1169,12 @@ def main():
             sys.exit(f"users.csv: {u['login']} has unknown role {u['role']!r} "
                      f"(expected one of {', '.join(sorted(ROLE_GROUPS))})")
 
+    validate_menu(data["menu"])
     validate_sales(data["sales"], data["menu"])
+    categories = len({r["pos_category"] for r in data["menu"]})
     print(f"validated {len(data['employees'])} employees, {len(data['departments'])} departments, "
-          f"{len(data['menu'])} menu products, {len(data['inventory'])} pantry items, "
+          f"{len(data['menu'])} menu products in {categories} categories, "
+          f"{len(data['inventory'])} pantry items, "
           f"{len(orders_from(data['sales']))} orders -- all wages >= Rp {MIN_WAGE:,}")
 
     o = Odoo(args.url, args.db, args.user, args.password, args.apply)
@@ -1061,6 +1196,7 @@ def main():
     step_users(o, rep, data["users"],
                {e["code"]: e["name"] for e in data["employees"]}, emp_ids)
 
+    retire_old_menu(o, rep)
     menu_ids, category_ids = step_menu(o, rep, data["menu"])
     report_uncategorized(o, rep)
     step_register(o, rep, category_ids)

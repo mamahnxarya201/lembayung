@@ -1,10 +1,31 @@
-name,pos_category,price
-Kopi,Coffee,10000
-Es Teh,Tea,5000
-Sinom,Juice,7000
-Extra Shot,Add On,5000
-Es Batu,Add On,5000
-Sambal Bawang,Add On,5000
-Telor,Add On,5000
-Sego Tok,Add On,2000
-Cup Take Away,Add On,0
+name,pos_category,price,description,temperature,best_seller
+Original Cold Brew,Cold Brew Based,15000,Kopi rendam dingin,ice,no
+Berry Jump,Cold Brew Based,18000,Kopi rendam dingin dengan sensasi berry,ice,yes
+Kopi Air Hujan,Cold Brew Based,15000,Kopi Arabica dengan teknik seduh terbalik,hot,no
+Espresso,Espresso Based,8000,Ekstrak kopi,hot,no
+Americano,Espresso Based,10000,Espresso dengan air dingin,ice,yes
+Long Black,Espresso Based,10000,Espresso dengan air dingin,ice,no
+Coffee Latte,Espresso Based,16000,Espresso dengan susu,ice,no
+Creamy Latte,Espresso Based,16000,Kopi susu dengan sirup Vanilla,ice,yes
+Palm Latte,Espresso Based,16000,Kopi susu dengan sirup gula aren,ice,no
+Tier 1,Manual Brew,15000,,hot/ice,no
+Tier 2,Manual Brew,20000,,hot/ice,no
+Tier 3,Manual Brew,25000,,hot/ice,no
+Kopi Tubruk Warkop,Kopi Robusta,5000,Bubuk Kopi Robusta,hot,no
+Kotub Special,Kopi Robusta,8000,Biji kopi robusta pilihan,hot,yes
+Kotub Susu,Kopi Robusta,12000,Robusta dengan susu manis,hot,no
+Kotub Jahe,Kopi Robusta,12000,Robusta dengan jahe,hot,no
+Es Teh Kula,Tea Based,5000,teh klasik otentik,hot/ice,no
+Es Teh Tarik,Tea Based,10000,thai tea dipadu susu manis,ice,yes
+Es Plankton,Tea Based,12000,teh hijau dengan sensasi soda lemon,ice,no
+Es Senja Biru,Tea Based,12000,teh bunga telang dengan sensasi asam segar lemon,ice,yes
+Es Merona,Tea Based,12000,teh hitam dan rosella racikan dengan nuansa lemon,ice,no
+Matcha,Milk Based,18000,olahan matcha dengan susu,ice,no
+Coklat Otentik,Milk Based,18000,olahan cokelat organik dengan susu,ice,yes
+Matcho,Milk Based,20000,olahan matcha dengan coklat organik,ice,no
+Wedang Jahe,Wedang,12000,minuman organik dari jahe dengan irisan serai,hot,yes
+Susu Jahe,Wedang,12000,wedang jahe dengan tambahan susu,hot,no
+Wedang Uwuh,Wedang,12000,olahan minuman dengan berbagai rempah,hot,no
+Sinom Regular,Wedang,10000,sinom dengan serai dan jeruk nipis,ice,no
+Sinom Big,Wedang,13000,sinom dengan serai dan jeruk nipis,ice,yes
+Take Away Plastik,Add On,2000,Biaya plastik untuk pesanan dibawa pulang,,no
