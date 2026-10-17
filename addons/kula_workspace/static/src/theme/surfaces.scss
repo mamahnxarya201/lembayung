@@ -74,6 +74,21 @@ body.o_web_client {
                 box-shadow: 0 3px 10px $o-sw-card-shadow-hover;
             }
         }
+
+        // The per-card ⋮ menu is hover-revealed by core above the `md`
+        // breakpoint (kanban_record.scss: `visibility: hidden`, then
+        // `:hover … visible`, with an always-visible fallback *below* md only).
+        // A tablet is wider than md and has no pointer to hover with, so on the
+        // screen where the register is actually operated the menu is
+        // unreachable -- which is the POS dashboard's "select a counter" card,
+        // the one place a session is opened, configured or archived.
+        //
+        // Visible at every width, not just under a `(hover: none)` query: the
+        // shop's operators always use a tablet, and a rule that only fires under
+        // touch emulation cannot be checked by resizing a desktop browser.
+        .o_kanban_record .o_dropdown_kanban {
+            visibility: visible;
+        }
     }
 
     // -----------------------------------------------------------------------

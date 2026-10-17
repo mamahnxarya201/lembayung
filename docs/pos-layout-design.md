@@ -1046,3 +1046,66 @@ The stills are `15-login-cashier.png`, `16-login-admin.png`, `17-sidebar-cashier
 `18-sidebar-admin.png` in `.amp/in/artifacts/` (orb-local, git-ignored); the labelled four-panel
 copy that GitHub issue #3 links to is committed as
 [`docs/images/backend-shortcut-cashier-vs-admin.png`](images/backend-shortcut-cashier-vs-admin.png).
+
+---
+
+## 18. The dashboard card's ⋮ menu never hides
+
+Commanded (issue #5): *"Saat masuk di Point of sale > Dashboard; card list pada sistem akan selalu
+terlihat three dotted menu di pojok kanan atas. Karena user akan selalu menggunakan tablet."*
+
+Core draws that menu and then hides it. `web/static/src/views/kanban/kanban_record.scss`:
+
+```scss
+.o_kanban_record .o_dropdown_kanban { visibility: hidden; }
+.o_kanban_record:hover .o_dropdown_kanban { visibility: visible; }   // reveal on hover
+@media (max-width: ...md) { .o_dropdown_kanban { visibility: visible; } }  // always on phones
+```
+
+The escape hatch is **below** `md`, so it covers a phone and nothing else. A tablet is wider than
+`md` and has no pointer to hover with, so on the exact device the operator holds, the menu that
+opens a session, configures the counter or archives it cannot be reached. It is the dashboard's only
+control besides `Continue Selling`.
+
+### 18.1 One rule, in the theme layer
+
+`addons/kula_workspace/static/src/theme/surfaces.scss`, inside the existing
+`body.o_web_client .o_kanban_view` block:
+
+```scss
+.o_kanban_record .o_dropdown_kanban {
+    visibility: visible;
+}
+```
+
+Three decisions in that one line:
+
+1. **Not a selector fight.** Visibility, not `display`, is what core toggles, so one property
+   overrides both states and no `!important` is needed.
+2. **Every width, not `(hover: none)`.** A media query for touch is more faithful to the reason,
+   but it cannot be checked by resizing a desktop browser, and this repo verifies screenshots that
+   way. Always visible is also what was asked: the shop's operators always work on a tablet.
+3. **Every kanban, not just this one.** The issue says "card list pada sistem", and the same menu is
+   the only way to act on a card anywhere. Nothing about it is POS-specific.
+
+### 18.2 Verified with the menu actually opened
+
+Playwright against the orb's Chrome, `deviceScaleFactor: 2`, pointer parked in the bottom-left corner
+(so no hover can be responsible). Two sizes and both pointer kinds, because "tablet" was reported
+from a resized desktop browser and can also mean a real touch screen:
+
+| Viewport, pointer | `matchMedia("(hover: hover)")` | `.o_dropdown_kanban` | Box (x, y, w, h) | Menu opens |
+|---|---|---|---|---|
+| 1317×629, mouse | true (the hard case) | `visibility: visible` | (755, 120, 24, 33) | yes |
+| 1024×768, mouse | true | `visibility: visible` | (983, 120, 24, 33) | — |
+| 1024×768, `hasTouch` | **false** | `visibility: visible` | (983, 122, 24, 37) | yes, with a **tap** |
+
+The opened menu lists View: Orders, Sessions; Reporting: Orders; Configure — i.e. the controls that
+start, inspect and archive a counter.
+
+Stills: `20-pos-dashboard-tablet.png`, `21-pos-dashboard-menu-open.png` (menu open with the mouse),
+`22-pos-dashboard-1024.png` and `23-pos-dashboard-1024-menu.png` (open from a touch tap) in
+`.amp/in/artifacts/` (orb-local, git-ignored).
+
+Static assets only, so no module update: `regenerate_assets_bundles()` + `signal_changes()` in an
+Odoo shell, then reload.
