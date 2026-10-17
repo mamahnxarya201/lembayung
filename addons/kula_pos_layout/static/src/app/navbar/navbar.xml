@@ -64,6 +64,28 @@
             <span class="kula-sidebar-title" t-esc="pos.config.name"/>
         </xpath>
 
+        <!-- The Backend entry is the administrator's shortcut, exactly like the
+             login screen's own Backend button (login_screen.xml): a kiosk-only
+             account cannot open the backend at all — kula_security's guard
+             answers /odoo with the register — so for a cashier or barista the
+             entry is a door that does not open.
+
+             Hidden through the component's `class` prop, not `t-if`, and that is
+             deliberate: pos_hr owns this same node's `t-if` (it sets it to
+             `showBackend` with a plain set, not an `add`), and template
+             inheritance applies modules in load order — kula_pos_layout before
+             pos_hr — so a `t-if` added here would be overwritten. A class
+             survives that, and `d-none` takes the item out of the drawer's
+             layout, its tab order and the accessibility tree with it.
+
+             `class` and not `t-att-class` / `t-attf-class`: props on an OWL
+             component are already expressions, so OWL rejects both attributes
+             ("t-att makes no sense on component") — and the node has no class
+             of its own to preserve. -->
+        <xpath expr="//DropdownItem[contains(text(), 'Backend')]" position="attributes">
+            <attribute name="class">this.pos.user.kula_can_open_backend ? '' : 'd-none'</attribute>
+        </xpath>
+
         <!-- Category dropdown, immediately left of the search field so the pair
              reads as scope -> query.
 

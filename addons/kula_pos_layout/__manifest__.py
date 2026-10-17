@@ -21,6 +21,9 @@ and keeps it usable on any tablet regardless of resolution or orientation.
 * The navbar's burger menu becomes a **sidebar** with a scrim: core's own menu,
   re-painted, so pos_hr's permission-gated entries and pos_restaurant's floor
   entries keep working.
+* The **Backend** shortcut (login screen and sidebar) is the administrator's:
+  hidden for everyone else, because a kiosk-only account cannot open the backend
+  anyway (kula_security sends /odoo back to the register).
 * Product cards carry their price (core prints none).
 * Product grid column count is derived from the viewport, never hardcoded.
 * Two controls on the order side: **Payment** and **Save Order** — the first

@@ -981,3 +981,66 @@ unlinked).
    It is the opposite of `pos.order.line`, which does define that list — and `pos.order.line`
    provides `_is_field_accepted`, which is where a field would silently disappear if this had been a
    line.
+
+---
+
+## 17. The Backend shortcut belongs to the administrator
+
+Commanded: *the Backend button on the screen before the register is opened should be gone for non-admins,
+and for the admin it must land in Odoo proper, not in the kiosk.*
+
+There are **two** Backend shortcuts inside the register and both are gated now:
+
+| Where | Extension point | Behaviour |
+|---|---|---|
+| Login screen ("Unlock Register"), bottom button | `point_of_sale.LoginScreen`, `t-if` on `.select-logout` | hidden unless `pos.user.kula_can_open_backend` |
+| Sidebar (`☰`) entry | `point_of_sale.Navbar`, `class` prop on `DropdownItem[Backend]` | `d-none` unless the same flag |
+
+Both call core's `pos.closePos()`, which ends on
+`/odoo/action-point_of_sale.action_client_pos_menu` — the backend. For an administrator that is where
+they land; for a kiosk-only account the door never opens at all, because `kula_security`'s
+`ir.http._dispatch` answers `/web`, `/odoo` and `/scoped_app` with the register. Hiding the button is
+therefore not a restriction, it is removing a control that would bounce the user back to the screen
+they were on.
+
+### 17.1 The flag, and why it is a field
+
+`res.users.kula_can_open_backend` — computed, `base.group_system` (the Odoo administrator), sent to
+the register by naming it in `_load_pos_data_fields`, which `res.users` defines explicitly (unlike
+`pos.config`).
+
+A *field* and not a key added to the payload in `_load_pos_data_read` (which is how core ships
+`_role`): the browser builds each record's properties from the model's field definitions
+(`models/related_models/model_classes.js`), so an extra key is readable in `raw` but never as
+`user.<key>` — the first version of this returned `undefined` in the browser while the payload
+carried it. A field also makes the value visible where it is computed instead of being a client-only
+side channel.
+
+### 17.2 Two template facts this cost
+
+1. **`t-if` on that sidebar entry cannot be added from here.** `pos_hr` sets `t-if="showBackend"` on
+   the very same `DropdownItem` with a plain set (not an `add`), and template inheritance applies
+   modules in load order — `kula_pos_layout` sorts before `pos_hr` — so the added condition is
+   overwritten and the entry stays visible. A **class prop** survives it; `d-none` removes the row
+   from the drawer, its tab order and the accessibility tree.
+2. **Props on an OWL component are already expressions.** `t-att-class` is rejected ("t-att makes no
+   sense on component") and `t-attf-class` is rejected too ("use template strings for string
+   interpolation in props"); the working form is `class="<expression>"`. Both were tried, and both
+   print the POS's generic "Something went wrong" screen with the real message only in the browser
+   console — the same failure shape as §15.5.
+
+### 17.3 Verified with real pointer clicks
+
+Playwright driving the orb's Chrome (the coordinate-click path of the in-orb browser stopped delivering
+pointer events after the orb resumed, so this run used Playwright against the same Chrome binary).
+1280×800, both users logged in fresh:
+
+| Check | Cashier (`cashier@kula.example`) | Admin (`aryana@odoo.com`) |
+|---|---|---|
+| `pos.user.kula_can_open_backend` | `false` | `true` |
+| Login screen: Backend button | **absent** (0 nodes) | present, label `Backend` |
+| Sidebar visible entries | Install App, Reload Data, Close Register | Install App, Reload Data, Create Product, Backend, Close Register |
+| Clicking Backend | — | `/odoo/point_of_sale`, backend navbar rendered |
+
+The stills are `15-login-cashier.png`, `16-login-admin.png`, `17-sidebar-cashier.png` and
+`18-sidebar-admin.png` in `.amp/in/artifacts/` (orb-local, git-ignored).

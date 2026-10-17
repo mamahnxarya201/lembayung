@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- The register's login screen: Open Register, and a Backend button at the
+         bottom whose label is core's `backBtnName` and whose click is core's
+         `closePos()` (sync, then `/odoo/action-point_of_sale...`).
+
+         The button is kept for an administrator and taken off the screen for
+         everybody else. Two reasons, and they point the same way: a kiosk-only
+         account cannot open the backend at all (kula_security's guard answers
+         /odoo with the register), so for a cashier the button is a door that
+         does not open; and the screen in front of the customer is not the place
+         for an Odoo shortcut. The flag is computed server-side, per logged-in
+         user — see models/res_users.py. -->
+    <t t-name="kula_pos_layout.LoginScreen"
+       t-inherit="point_of_sale.LoginScreen"
+       t-inherit-mode="extension">
+
+        <!-- contains(@class, 'select-logout') and not hasclass('select-logout'):
+             hasclass() never matches a hyphenated class name (see action_pad.xml). -->
+        <xpath expr="//button[contains(@class, 'select-logout')]" position="attributes">
+            <attribute name="t-if">this.pos.user.kula_can_open_backend</attribute>
+        </xpath>
+    </t>
+</templates>
