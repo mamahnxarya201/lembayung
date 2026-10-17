@@ -1109,3 +1109,7 @@ Stills: `20-pos-dashboard-tablet.png`, `21-pos-dashboard-menu-open.png` (menu op
 
 Static assets only, so no module update: `regenerate_assets_bundles()` + `signal_changes()` in an
 Odoo shell, then reload.
+
+The labelled two-panel copy of the same run is committed as
+[`docs/images/pos-dashboard-menu-tablet.png`](images/pos-dashboard-menu-tablet.png) and linked from
+GitHub issue #5.
