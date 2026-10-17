@@ -25,6 +25,18 @@ and keeps it usable on any tablet regardless of resolution or orientation.
   hidden for everyone else, because a kiosk-only account cannot open the backend
   anyway (kula_security sends /odoo back to the register).
 * Product cards carry their price (core prints none).
+* **Every sale and shift names the person who rang it up.** Odoo keeps two
+  links to a person on a sale — the logged-in user (core's `user_id`) and
+  pos_hr's `employee_id`, which the Orders list's *Cashier* column shows. The
+  browser only fills the second one when the register asks for a cashier at the
+  login screen (*Cashier Login* on the config, off by default), so without it
+  every sale at the counter showed an empty Cashier cell — an administrator's
+  included. The register now attributes a sale, and the shift it belongs to, to
+  the employee of the user operating it whenever the register itself did not
+  (models/pos_order.py, models/pos_session.py); the sales already in the database
+  are repaired by the seeder (seed/seed.py, `rebind_the_day`), which owns that
+  data — this module's own data files cannot touch pos_hr's fields at all, see
+  §20.3 of the design doc.
 * Product grid column count is derived from the viewport, never hardcoded.
 * Two controls on the order side: **Payment** and **Save Order** — the first
   commits, the second parks the order under a name the cashier types (a title

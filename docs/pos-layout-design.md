@@ -1278,3 +1278,136 @@ Both were hit while writing §19.2, and both fail as "the whole register shows n
    `point_of_sale.assets_prod.bundle.xml` (§15.5 said this once already). Use `—`.
 2. **`&mdash;` is not defined.** OWL templates are parsed as XML with no entity table: it must be the
    literal `—` character.
+
+---
+
+## 20. The Cashier column, and who rang it up
+
+**Status: implemented and verified on the live register.** Filed as issue #9 — *"Logging casher pada
+tampilan order seharusnya menampilkan semua kasir yang mengeluarkan product. Saat `Administrator`
+mengeluarkan product, log ditemukan tapi tidak ada kredensial siapa yang mengeluarkan"*: an
+administrator's sale sat in the Orders list with an empty Cashier cell, next to the seeded day of
+takings where every row showed a name. The owner's clarification is the specification — whoever
+operates the kiosk, administrator or kiosk role, has to be recorded on the shift and on the sale,
+with their name.
+
+### 20.1 Two fields, and only one of them is ever filled
+
+| Field | Label | Who writes it |
+|---|---|---|
+| `pos.order.user_id` | *Employee* (core) | the browser, on every order it creates (`createNewOrder` puts `this.user` on it) — the logged-in user, cashier login or not |
+| `pos.order.employee_id` | *Cashier* (pos_hr) | the browser **only when `pos.config.module_pos_hr` is on**, because that is the mode in which `hr.employee` is loaded into the register and a cashier is picked at the login screen. With it off there is no employee in the browser at all (`pos_session._load_pos_data_models` adds `hr.employee` for that config only) |
+
+pos_hr replaces the column that shows: its list view swaps core's `user_id` for `employee_id`
+(`many2one_avatar_employee`). So on a register whose cashier login is **off** — the default of a
+fresh database, and this database's setting: `module_pos_hr` is `NULL` on `pos.config` 1, verified —
+*every* sale the register makes shows an empty Cashier cell, whatever role rang it up. The rows that
+did show a name are the seeded day of takings: `seed/seed.py` writes `employee_id` explicitly.
+
+Measured on the live stack, administrator at the register, cashier login off, one sale paid:
+
+```
+pos.order 8   user_id=2 (Administrator)   employee_id=NULL   cashier='Administrator' (pos_hr's char, not the column)
+pos.order 1-7 user_id=6 (Kula Cashier)    employee_id=3      cashier='Kula Cashier'      -- the seed
+```
+
+The same sale with the cashier login *on* is fine — the login screen makes the operator pick a
+cashier from the employee list (the administrator picks themselves; verified: `employee_id` is set
+before the order is even paid) — which is why the blank cell only ever appeared with it off.
+
+### 20.2 The rule: attribute the sale to whoever rang it up
+
+`models/pos_order.py` fills `employee_id` from the sale's own `user_id` when the register did not
+send one (`create`, via `_kula_attribute_cashier`), and `models/pos_session.py` does the same for the
+shift when it is opened. With the cashier login off, `user_id` *is* the person operating the till, so
+their own employee record is the truthful attribution rather than a guess; with it on, the browser
+has already sent the cashier it asked for and the hooks change nothing. sudo() is used only to read
+the link between the two records — a kiosk member has no right to `hr.employee` and would otherwise
+be denied their own.
+
+Core creates the session with the opener already on it (`pos.config._action_to_open_ui`:
+`{'user_id': self.env.uid, 'config_id': self.id}`), so the shift's employee comes from `user_id`
+there too.
+
+### 20.3 The trap: this module loads *before* pos_hr
+
+The repair of sales already in the database cannot be done by this module at all — not by a
+`<function>` in a data file, not by a migration, not by `post_init_hook`. All three run while
+`kula_pos_layout` is being loaded, and **kula_pos_layout sorts before pos_hr in the load order**
+(the fact §17.2 already relies on for template inheritance): at that moment pos_hr's Python has not
+been loaded and `pos.order` has **no `employee_id` field**. The method runs, finds no field, returns.
+
+That cost an afternoon, so here is the evidence rather than the story:
+
+| What was tried | Result |
+|---|---|
+| `<function model="pos.order" name="_kula_backfill_cashier"/>` in `data/` | ran, filled nothing (`'employee_id' in env['pos.order']._fields` is **False** inside the update, **True** in the finished registry) |
+| the same file with a `<function name="write" model="res.currency">` beside it (§12's IDR write) | **worked** — which is how we know functions do run on upgrade, and the failure is the missing field |
+| `migrations/19.0.1.1.0/post-migrate.py` (version bumped for it) | ran (`Running upgrade [19.0.1.1.0>] post-migrate`), same missing field |
+| `env['pos.order']._kula_backfill_cashier()` from `odoo shell` | works — the registry is complete there |
+
+`_kula_backfill_cashier` is therefore kept as a *shell-callable* repair, and the automatic repair of
+what is already in the database belongs to the seeder, which owns that data (§20.4).
+
+### 20.4 What the seeder repairs, and what it must not
+
+`seed/seed.py`'s `rebind_the_day` already re-pointed the kept day at the cashier when a `--purge`
+deleted and re-created the people. It now repairs only **missing** attribution, and never a sale that
+names somebody else:
+
+* a row the purge emptied (`user_id` nulled) is the day's, i.e. the cashier's;
+* a row with an operator but no employee — a sale made before the register attributed one — gets
+  *that operator's* employee, which is how the administrator's sale from the issue gets its name;
+* a row attributed to somebody else is that person's sale. Before, the function re-bound *every* order
+  of the session to the cashier, which would have relabelled an administrator's or the owner's sale
+  as the cashier's — a lie about who rang it up, and the exact thing this issue is about.
+
+The seeded shift carries the cashier too now (`employee_id` on the `pos.session` the seeder creates,
+and repaired in the same pass when empty), because pos_hr's `employee_id` is what the sales reports
+group by and the account that runs the seed is the administrator's.
+
+### 20.5 Verified
+
+Live stack, `module_pos_hr = false` (the configuration the issue was filed against), each sale rung
+up through the register and paid:
+
+| Operator | Sale | `user_id` | `employee_id` before | `employee_id` after |
+|---|---|---|---|---|
+| `aryana@odoo.com` (administrator) | issue #9's case | 2 | `NULL` | **1 — Administrator** |
+| `cashier@kula.example` (kiosk role) | the comparison the owner asked for | 6 | `NULL` | **3 — Kula Cashier** |
+
+Both were `NULL` before because the browser never sends an employee with the cashier login off — the
+kiosk role was *not* being recorded either; the seeded day is what made it look otherwise.
+
+The shift's half, through the call the register itself makes
+(`pos.session.create({'user_id': uid, 'config_id': id})`, from `pos.config._action_to_open_ui`),
+against a throwaway config:
+
+| Opener | session `user_id` | session `employee_id` |
+|---|---|---|
+| `aryana@odoo.com` | `aryana@odoo.com` | **Administrator** |
+| `cashier@kula.example` | `cashier@kula.example` | **Kula Cashier** |
+| `barista@kula.example` | `barista@kula.example` | **Kula Barista** |
+| `owner@kula.example` | — | `AccessError: You are not allowed to access 'Point of Sale Configuration'` |
+
+That last row is not this module's doing and not a defect of it: **the Owner role has no rights on
+`pos.config` at all**, by design (§2 of `kula_security`'s group comments: *"the owner is not an
+operator"*), so the owner cannot open a register in the first place. The owner asked for "administrator
+**or other non kiosk role**" to be recorded at the till; the administrator now is, and any other role
+that can operate the register is too — a role that cannot reach the register at all would need till
+rights from the Access Matrix first, which is a decision about the roles, not about this fix.
+
+Backend **Point of Sale → Orders** after the fix, every row carrying its operator (10 rows: the day of
+takings, plus the administrator's and the cashier's test sales):
+
+```
+264-1-000001  Rp  5,000  [K] Kula Cashier
+263-1-000001  Rp 10,000  [A] Administrator     <- administrator at the register
+261-1-000001  Rp 15,000  [A] Administrator     <- the same, first run
+260-1-000007 … 260-1-000001  Rp 10,000…15,000  [K] Kula Cashier   -- the seed
+```
+
+Artifact: `.amp/in/artifacts/issue9-orders-cashier.png` (orb-local, git-ignored). The throwaway sales
+used for the runs above were removed with SQL afterwards (a paid `pos.order` cannot be deleted
+through the ORM — see the backlog recipe) and the database is back to the seeded day, with the
+shift's cashier repaired.

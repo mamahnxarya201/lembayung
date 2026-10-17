@@ -9,7 +9,9 @@ ReceiptScreen themed; IDR renders without decimals; order-line stepper; navbar s
 (category picture tiles → products popup → add-ons, §15 of the design doc); **Save Order** (park an
 order under a name, then find it in the Orders list, §16); **closing the register** (a
 "close shift?" confirmation with Close Shift / Close Store, and a close that works for every role,
-§19); settings under **Settings → Point of Sale → KULA counter layout**.
+§19); **every sale and shift names its operator** (§20: the Orders list's Cashier column was empty
+for every sale made with the cashier login off, an administrator's included — issue #9); settings
+under **Settings → Point of Sale → KULA counter layout**.
 
 ---
 
@@ -170,6 +172,16 @@ past it:
 2. `pos.config.module_pos_hr = False` on config 1 — with HR on, the login needs a cashier PIN.
 3. On the login screen, click `.open-register-btn`; it just selects the current user as cashier.
 4. **Restore `module_pos_hr = True` and delete the throwaway user afterwards.**
+
+### Why this module's own data files cannot touch pos_hr's fields
+
+`kula_pos_layout` sorts **before** `pos_hr` in the load order (§17.2 relies on it for template
+inheritance), so while this module is being loaded, pos_hr's Python is not in the registry yet and
+`pos.order` has **no `employee_id`** field. A `<function>` in a data file, a `migrations/` script and
+`post_init_hook` all run at that moment: they execute, see no field, and do nothing — silently. The
+same method from `odoo shell` works, because the registry is complete there. Anything that has to
+touch pos_hr's fields has to run after the registry is up: from the register itself, from the
+seeder, or from a shell. (Found on issue #9; the full evidence is in §20.3 of the design doc.)
 
 ### Making a static change actually reach the browser
 

@@ -23,13 +23,42 @@ its own when it decides the caller is a POS user (``record = record.sudo()``).
 That is what these overrides do, and only for the register's own operators: a
 caller who is neither a POS user nor a kiosk member reaches core untouched and
 still gets core's answer.
+
+The file also carries one attribution rule -- ``create``, below: the shift
+belongs to the person who opened it. The whole story is in models/pos_order.py,
+whose rule for a sale is the same one.
 """
-from odoo import SUPERUSER_ID, _, models
+from odoo import SUPERUSER_ID, _, api, models
 from odoo.exceptions import AccessError, UserError
 
 
 class PosSession(models.Model):
     _inherit = "pos.session"
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Record who opened the shift when the register did not.
+
+        The same rule as a sale's cashier (models/pos_order.py), on the record
+        that is the shift itself: with the cashier login off, nothing ever
+        writes pos_hr's ``employee_id`` here either -- the browser only does it
+        when a cashier is picked at the login screen -- so the shift of a
+        register whose cashier login is off belongs to nobody.
+
+        Core creates the session for the register with the opener already on it
+        (``pos.config._action_to_open_ui``: ``{'user_id': self.env.uid, ...}``),
+        so the employee comes from ``user_id``, not from the environment. A
+        caller that names an employee (the seeder's day of takings, pos_hr
+        itself) is left alone.
+        """
+        if "employee_id" in self._fields:
+            for vals in vals_list:
+                if vals.get("employee_id"):
+                    continue
+                opener = self.env["res.users"].browse(vals.get("user_id") or self.env.uid)
+                if employee := opener.sudo().employee_id:
+                    vals["employee_id"] = employee.id
+        return super().create(vals_list)
 
     def _kula_closing_record(self):
         """This session, in the environment core's closing API is written for.

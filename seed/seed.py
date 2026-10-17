@@ -902,12 +902,27 @@ def step_pantry(o, rep, rows):
 
 
 def rebind_the_day(o, rep, session_id, cashier_login):
-    """Point the kept day back at the cashier when the people were re-created.
+    """Repair the kept day's attribution when the people were re-created.
 
     The day cannot be deleted -- Odoo refuses a paid order -- but the people can:
     a --purge deletes them and Odoo nulls the orders' cashier columns along with
     them, so a later --apply would leave a day of takings rung up by nobody. The
     write changes no state, only who the sales are attributed to.
+
+    Only *missing* attribution is repaired, never a sale that names somebody
+    else. The register attributes every sale to the person operating it (issue
+    #9, kula_pos_layout's models/pos_order.py), so an administrator's or the
+    owner's sale can sit in the same session as the day's, and handing it to the
+    cashier would be a lie about who rang it up. Two rows need the repair: a row
+    the purge emptied (user_id nulled) is the day's, i.e. the cashier's; a row
+    with an operator but no employee -- a sale made before the register
+    attributed one, and the module cannot repair those itself, see
+    pos_order.py -- gets that operator's employee.
+
+    The shift itself is repaired the same way, and only when it is empty: it is
+    the day's shift because this seed created it, but pos_hr's employee_id is
+    what the sales reports group by, and the account that ran the seed is not
+    who worked the counter.
     """
     if not cashier_login:
         return
@@ -915,22 +930,37 @@ def rebind_the_day(o, rep, session_id, cashier_login):
     if not cashier:
         return
     values = {"user_id": cashier[0]}
-    if o.search("ir.module.module", [("name", "=", "pos_hr"), ("state", "=", "installed")]):
+    has_pos_hr = bool(o.search("ir.module.module", [("name", "=", "pos_hr"),
+                                                  ("state", "=", "installed")]))
+    if has_pos_hr:
         employee = o.search("hr.employee", [("user_id", "=", cashier[0])], limit=1)
         if employee:
             values["employee_id"] = employee[0]
+            session = o.call("pos.session", "read", [[session_id], ["employee_id"]])[0]
+            if session["employee_id"]:
+                rep.add("the shift's cashier", "already-set")
+            else:
+                if o.apply:
+                    o.call("pos.session", "write", [[session_id], {"employee_id": employee[0]}])
+                rep.add("the shift's cashier", "re-bound" if o.apply else "would-rebind")
 
     order_ids = o.search("pos.order", [("session_id", "=", session_id)])
-    rows = o.call("pos.order", "read", [order_ids, list(values)])
-    stale = [row["id"] for row in rows
-             if any((row[field][0] if row[field] else False) != values[field]
-                    for field in values)]
-    if not stale:
+    rows = o.call("pos.order", "read", [order_ids, ["user_id", "employee_id"]])
+    plan = {}
+    for row in rows:
+        if not row["user_id"]:
+            plan[row["id"]] = values
+        elif not row["employee_id"]:
+            employee = o.search("hr.employee", [("user_id", "=", row["user_id"][0])], limit=1)
+            if employee:
+                plan[row["id"]] = {"employee_id": employee[0]}
+    if not plan:
         rep.add("the day's cashier", "already-set")
         return
     if o.apply:
-        o.call("pos.order", "write", [stale, values])
-    rep.add("the day's cashier", "re-bound" if o.apply else "would-rebind", len(stale))
+        for order_id, order_values in plan.items():
+            o.call("pos.order", "write", [[order_id], order_values])
+    rep.add("the day's cashier", "re-bound" if o.apply else "would-rebind", len(plan))
 
 
 def step_sales(o, rep, rows, menu_ids, cashier_login=None):
@@ -984,7 +1014,14 @@ def step_sales(o, rep, rows, menu_ids, cashier_login=None):
                                                  ("state", "=", "installed")]):
         cashier_employee = o.search("hr.employee", [("user_id", "=", cashier[0])], limit=1)
 
-    session_id = o.call("pos.session", "create", [{"config_id": config_id}])
+    session_values = {"config_id": config_id}
+    # The shift is the cashier's, like the orders in it. Odoo attributes a
+    # session to the user that created it (user_id, "Opened By"), and the
+    # account that runs the seed is the administrator's, so the employee has to
+    # be named for the day to read as the cashier's work.
+    if cashier_employee:
+        session_values["employee_id"] = cashier_employee[0]
+    session_id = o.call("pos.session", "create", [session_values])
     # Opening the register is what sets start_at and the session's name; 0 is
     # the cash in the drawer before the first sale. It returns nothing, so the
     # state afterwards is what says it worked.
