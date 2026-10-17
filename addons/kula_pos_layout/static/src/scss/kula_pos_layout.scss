@@ -669,3 +669,102 @@ $kula-radius: 10px;
     margin-left: 8px;
     font-size: clamp(15px, 1.8vh, 17px);
 }
+
+/* -----------------------------------------------------------------------------
+   19. The close-shift confirmation
+
+   The dialog in front of closing a register (close_shift.xml, issue #4). Two
+   answers, stacked, each one a full-width row with its own label and its own
+   sentence: at a counter the person tapping is standing up, and "close shift"
+   against "close store" is not a choice to make from two bare verbs.
+
+   Colours are declared as plain properties and the `:hover`/`:active` selectors
+   carry the extra class, for the reason §16 gives: Odoo 19's `.btn` does not
+   read Bootstrap's `--bs-btn-*` variables. Close Shift keeps the register's
+   own purple (the one the Payment button wears); Close Store is red, because it
+   is the one answer that also takes the other registers down.
+   -------------------------------------------------------------------------- */
+.kula-close-shift {
+    .kula-close-question {
+        margin-bottom: 4px;
+        font-size: clamp(16px, 1.9vh, 19px);
+        font-weight: 650;
+    }
+
+    .kula-close-summary {
+        margin-bottom: 18px;
+        color: #4b5563;
+        font-size: 15px;
+    }
+
+    .kula-close-choices {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .btn.kula-close-choice {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        padding: 14px 18px;
+        text-align: left;
+        /* The sentence wraps inside the button; `.btn` sets nowrap. */
+        white-space: normal;
+    }
+
+    .kula-close-label {
+        font-size: clamp(16px, 2vh, 19px);
+        font-weight: 700;
+    }
+
+    .kula-close-hint {
+        font-size: 13px;
+        font-weight: 450;
+        opacity: 0.85;
+    }
+
+    .btn.kula-close-shift-button {
+        background-color: #714b67;
+        border-color: #714b67;
+        color: #ffffff;
+
+        &:hover,
+        &:focus-visible {
+            background-color: #5d3e55;
+            border-color: #5d3e55;
+            color: #ffffff;
+        }
+
+        &:active {
+            background-color: #4c3346;
+            border-color: #4c3346;
+            color: #ffffff;
+        }
+    }
+
+    .btn.kula-close-store-button {
+        background-color: #b91c1c;
+        border-color: #b91c1c;
+        color: #ffffff;
+
+        &:hover,
+        &:focus-visible {
+            background-color: #991b1b;
+            border-color: #991b1b;
+            color: #ffffff;
+        }
+
+        &:active {
+            background-color: #7f1d1d;
+            border-color: #7f1d1d;
+            color: #ffffff;
+        }
+    }
+
+    .kula-close-cancel {
+        margin-top: 10px;
+        color: #4b5563;
+    }
+}

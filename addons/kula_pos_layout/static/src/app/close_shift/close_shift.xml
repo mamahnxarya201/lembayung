@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- The confirmation in front of closing a register (issue #4). One
+         question, two answers, and each answer says what it will do: a counter
+         tablet is operated by whoever is standing there, and "close the
+         register" means two different things to a cashier changing over and to
+         the person locking the shop.
+
+         The buttons are the two actions, not [Confirm]/[Cancel]; Cancel is the
+         link below, out of the way of a thumb. -->
+    <t t-name="kula_pos_layout.CloseShiftPopup">
+        <Dialog title.translate="Close shift?" size="'md'" footer="false"
+                bodyClass="'kula-close-shift'">
+            <p class="kula-close-question">Are you sure you want to close shift?</p>
+            <p class="kula-close-summary" t-if="this.state.summary">
+                <span t-esc="this.props.register"/> — <span t-esc="this.state.summary"/>
+            </p>
+
+            <div class="kula-close-choices">
+                <button type="button" class="btn btn-lg kula-close-choice kula-close-shift-button"
+                        t-on-click="() => this.choose(false)">
+                    <span class="kula-close-label">Close Shift</span>
+                    <span class="kula-close-hint">
+                        This register only. The store stays open for another shift today.
+                    </span>
+                </button>
+                <button type="button" class="btn btn-lg kula-close-choice kula-close-store-button"
+                        t-on-click="() => this.choose(true)">
+                    <span class="kula-close-label">Close Store</span>
+                    <span class="kula-close-hint">
+                        The store: this register and every other register still open.
+                    </span>
+                </button>
+            </div>
+
+            <button type="button" class="btn btn-link kula-close-cancel"
+                    t-on-click="() => this.props.close()">
+                Cancel
+            </button>
+        </Dialog>
+    </t>
+</templates>

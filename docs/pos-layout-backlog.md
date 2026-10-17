@@ -7,8 +7,9 @@ verification method has been the hard part on this project (see §9 of
 Status of the module as committed: `addons/kula_pos_layout` — ProductScreen, PaymentScreen and
 ReceiptScreen themed; IDR renders without decimals; order-line stepper; navbar sidebar; **kiosk mode**
 (category picture tiles → products popup → add-ons, §15 of the design doc); **Save Order** (park an
-order under a name, then find it in the Orders list, §16); settings under
-**Settings → Point of Sale → KULA counter layout**.
+order under a name, then find it in the Orders list, §16); **closing the register** (a
+"close shift?" confirmation with Close Shift / Close Store, and a close that works for every role,
+§19); settings under **Settings → Point of Sale → KULA counter layout**.
 
 ---
 
@@ -187,6 +188,22 @@ Then confirm by grepping the bundle the page references, not by trusting the com
 curl -s -b cookies "http://localhost:8069$(curl -s -b cookies http://localhost:8069/pos/ui/1/product \
   | grep -o '/web/assets/[^"]*assets_prod.min.js' | head -1)" | grep -c '<your-new-identifier>'
 ```
+
+### Deleting a verified sale
+
+The ORM refuses to delete a `paid` order (`_unlink_except_draft_or_cancel`) and refuses to set it back
+to `draft` or `cancel` ("This order has already been paid"), so a throwaway sale created to check a
+screen cannot be removed through the ORM at all. The row can:
+
+```sql
+delete from pos_order where id = <id>;   -- lines and payments cascade (FKs are ON DELETE CASCADE)
+```
+
+Check first that nothing else points at it (`account_move.reversed_pos_order_id`, `account_payment`,
+`payment_transaction`, `stock_picking` all restrict), and that it has no account move of its own — one
+exists only once the session is closed. Delete the throwaway session too
+(`env['pos.session'].browse(id).unlink()`), and never leave a session in `closed` state without
+`stop_at` (see the note about writing `pos.session.state`).
 
 ### Reaching the ProductScreen's controls in a probe
 

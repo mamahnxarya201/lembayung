@@ -1113,3 +1113,125 @@ Odoo shell, then reload.
 The labelled two-panel copy of the same run is committed as
 [`docs/images/pos-dashboard-menu-tablet.png`](images/pos-dashboard-menu-tablet.png) and linked from
 GitHub issue #5.
+
+---
+
+## 19. Closing the register — one question, two answers
+
+Commanded (issue #4, *"Close Register Button"*): pressing Close Register must ask **"Are you sure you
+want to close shift?"**, with a **Close Store** button next to the plain close — Close Store closes the
+store and the session, the other answer closes only the shift — and either way the operator ends up
+logged out, on the login page. The issue was filed as an ACL problem (*"You don't have the access
+rights to get the point of sale closing control data"*) and the owner asked this work to be
+coordinated with the Access Matrix effort, not to wait for it.
+
+### 19.1 The access error was never an ACL row
+
+Core gates its whole closing API on `point_of_sale.group_pos_user`:
+
+| Where | What a caller without the group gets |
+|---|---|
+| `get_cash_in_out_list` (`pos_session.py:757`) | `AccessError` |
+| `get_closing_control_data` (`pos_session.py:779`) | `AccessError` — the one in the issue's screenshot |
+| `_validate_session` (`pos_session.py:427`) | no error, and no **account move**: the branch for non-POS users closes the shift and skips the day's entry |
+
+Kula's Cashier and Barista deliberately do not carry that group — `kula_security` grants the till its
+rights model by model instead — and the Access Matrix writes `ir.model.access` rows and
+`ir.ui.menu.group_ids` only, so it cannot satisfy a Python `has_group()` test. Granting the group
+would hand the till the whole POS User ACL set, which is exactly what `kula_security` exists to avoid.
+Coordinated with that thread; nothing there touches `pos.session`.
+
+`models/pos_session.py` therefore lifts the gate where the closing happens. The trick is that
+**`sudo()` is not enough**: it raises the ACL ceiling but leaves `env.user` alone, and the check reads
+the *environment's* user:
+
+```python
+self.env.user.has_group("point_of_sale.group_pos_user")            # the check
+browse(6).sudo().env.user.has_group("point_of_sale.group_pos_user")   # False -- still the cashier
+browse(6).with_user(SUPERUSER_ID).env.user.has_group(...)              # True
+```
+
+`_kula_closing_record()` returns the session in a superuser environment for a kiosk member
+(`kula_security.group_kiosk_only`), and the session unchanged for a POS user (core handles them) or
+for anybody else (core's `AccessError` is the right answer there). Four methods pass `self` through
+it: `get_closing_control_data`, `post_closing_cash_details`, `update_closing_control_state_session`
+and `close_session_from_ui`.
+
+### 19.2 The confirmation
+
+`close_shift/close_shift.{js,xml}` — an OWL dialog of this module's own, opened by the menu entry and
+answered through `makeAwaitable` (the Save Order popup's shape). The navbar's Close Register item is
+re-pointed at it with one attribute edit on core's own node:
+
+```xml
+<attribute name="onSelected">() => this.kulaCloseRegister()</attribute>
+```
+
+Only the handler changes: the label stays core's, and pos_hr's `t-if` gating of that same node stays
+pos_hr's. The handler is not `PosStore.closeSession` — that method is also called from inside the
+closing form (Cash In/Out), where a second confirmation would be noise.
+
+The dialog asks the server for what is being closed (`get_closing_control_data` — the same call the
+closing form makes a moment later) rather than counting in the browser: `pos.order._load_pos_data_domain`
+is `state = draft`, so the register only ever holds *draft* orders and a locally computed total would
+read zero. Core's closing form still follows — cash count, closing note, `Close Register` — because
+the cash count must not be skipped.
+
+After a close that actually happened (`ClosePosPopup.closeSession` patched, guarded on
+`pos.session.state === "closed"` so failures keep the operator on the register), the client closes the
+shop if that was the answer, then lands on `/pos/ui/<config>/login`.
+
+A register that refuses to close is reported **on the login screen**, not in the register: core's own
+close ends with a page navigation, and both a dialog and a notification die with it — an `AlertDialog`
+added after `super.closeSession()` was verified to never be seen. The names ride across in
+`sessionStorage` and a small `LoginScreen` patch (same file) shows them once, then clears them.
+
+### 19.3 Close Store = the other registers
+
+`pos.session.kula_close_store()` closes every *other* register of the company: `opening_control`,
+`opened` or `closing_control`. The caller's own register is excluded — it is already closed by the
+time this runs. Each register is closed in its own `try`, and the names that refused (draft orders, a
+session mid-close) come back in `failed` and are shown as a warning before the operator is logged out,
+because one counter must not be able to hold the shop open. Only a POS user or a kiosk member may
+call it.
+
+With one counter in the database this closes nothing, which is the correct answer for a one-register
+shop; the behaviour is what a second counter would need. **This is the one interpretation in this
+section worth confirming with the owner**: "close the store" could also mean *block reopening until
+tomorrow*, which would be a new state on `pos.config`, and that was not asked for.
+
+### 19.4 Verified
+
+Playwright against the orb's Chrome, 1024×768, DPR 2, cashier `cashier@kula.example`, JS errors 0 in
+every run:
+
+| Run | Result |
+|---|---|
+| Close Register | dialog titled `Close shift?`, question, `Close Shift` / `Close Store` / `Cancel`, summary line `Kula Counter — 1 order, Rp 10,000` |
+| Cancel | dialog gone, register intact, session still `opened`, nothing sent |
+| **Close Shift** (a second register open) | core's closing form → session `closed` → `/pos/ui/1/login`; the other register still `opened`; `kula_close_store` **not** called |
+| **Close Store** (a second register open) | same, plus a `pos.session/kula_close_store` call; **both** sessions `closed` at the same timestamp |
+| **Close Store** with a register that refuses (a draft order on it) | that register stays `opened`, and the login screen shows *Some registers stayed open* naming it and the reason |
+| Closing the seeded day | produced `POSS/2026/10/0001`, posted, Rp 148,000 — the branch §19.1 says would otherwise be skipped |
+
+The second register was a throwaway `pos.config` created for the test and removed afterwards (its
+sessions deleted; the one throwaway sale used to check the summary line was removed with SQL, because
+the ORM refuses to delete a paid order — see the backlog recipe).
+
+Stills, `.amp/in/artifacts/` (orb-local, git-ignored): `44-confirm-close-shift.png` (the dialog),
+`45-closing-form-shift.png` (core's form behind it), `46-after-close-shift.png` (the login screen it
+ends on), `47-confirm-with-sales.png` (the summary line with a sale in the session) and
+`48-close-store-failure.png` (the register that refused, named on the login screen).
+
+One piece of core behaviour worth knowing: after a close, loading the register again creates an
+`opening_control` session for the config by itself, so the "Open Register" screen has something to
+open. It is not this module's doing, and `kula_close_store` treats it as open.
+
+### 19.5 Two XML traps, again
+
+Both were hit while writing §19.2, and both fail as "the whole register shows nothing":
+
+1. **`--` inside an XML comment is a parse error.** `confirmation -- "Are you sure..."` broke
+   `point_of_sale.assets_prod.bundle.xml` (§15.5 said this once already). Use `—`.
+2. **`&mdash;` is not defined.** OWL templates are parsed as XML with no entity table: it must be the
+   literal `—` character.

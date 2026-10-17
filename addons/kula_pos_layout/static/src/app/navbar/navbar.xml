@@ -86,6 +86,18 @@
             <attribute name="class">this.pos.user.kula_can_open_backend ? '' : 'd-none'</attribute>
         </xpath>
 
+        <!-- Close Register asks first (issue #4): the entry opens this module's
+             confirmation — "Are you sure you want to close shift?", with the
+             two answers a shop has, Close Shift and Close Store — and core's
+             closing form follows once the operator has said what is closing.
+
+             Only the handler changes. The label, and pos_hr's own gating of this
+             entry (it owns the node's `t-if`, in another attribute), stay
+             core's and pos_hr's. -->
+        <xpath expr="//DropdownItem[contains(text(), 'Close Register')]" position="attributes">
+            <attribute name="onSelected">() => this.kulaCloseRegister()</attribute>
+        </xpath>
+
         <!-- Category dropdown, immediately left of the search field so the pair
              reads as scope -> query.
 

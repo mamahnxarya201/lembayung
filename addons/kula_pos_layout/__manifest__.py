@@ -31,6 +31,14 @@ and keeps it usable on any tablet regardless of resolution or orientation.
   and a note) and leaves it open in the Orders list, where the title is what the
   row is scanned for. Everything else (Cancel Order, Pricelist, Refund) lives in
   the (⋯) popup.
+* **Closing the register** is a question with two answers: *Close Shift* closes
+  this register, *Close Store* closes the shop as well (every other register
+  still open). Either way the operator ends on the register's login screen, and
+  either way the closing itself is still core's: cash count, closing note, and
+  the day's account move. A cashier or barista can close at all — core's closing
+  API asks for `point_of_sale.group_pos_user`, which the kiosk roles deliberately
+  do not carry, so the closing methods are opened for kiosk members here
+  (models/pos_session.py) rather than by widening the roles.
 * Numpad reduced to quantity entry, since Price/Disc modes are disabled here.
 * Every order line carries its own -/+ stepper and a delete button, so a line can
   be decremented or removed in one tap instead of select-then-numpad, and can be
