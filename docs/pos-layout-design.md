@@ -1043,4 +1043,6 @@ pointer events after the orb resumed, so this run used Playwright against the sa
 | Clicking Backend | — | `/odoo/point_of_sale`, backend navbar rendered |
 
 The stills are `15-login-cashier.png`, `16-login-admin.png`, `17-sidebar-cashier.png` and
-`18-sidebar-admin.png` in `.amp/in/artifacts/` (orb-local, git-ignored).
+`18-sidebar-admin.png` in `.amp/in/artifacts/` (orb-local, git-ignored); the labelled four-panel
+copy that GitHub issue #3 links to is committed as
+[`docs/images/backend-shortcut-cashier-vs-admin.png`](images/backend-shortcut-cashier-vs-admin.png).
