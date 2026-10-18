@@ -10,7 +10,9 @@ ReceiptScreen themed; IDR renders without decimals; order-line stepper; navbar s
 order under a name, then find it in the Orders list, §16); **closing the register** (a
 "close shift?" confirmation with Close Shift / Close Store, and a close that works for every role,
 §19); **every sale and shift names its operator** (§20: the Orders list's Cashier column was empty
-for every sale made with the cashier login off, an administrator's included — issue #9); settings
+for every sale made with the cashier login off, an administrator's included — issue #9); **a 24-hour
+clock** (§22: the list cells and the receipt render from the locale, which no language setting
+reaches — issue #7); settings
 under **Settings → Point of Sale → KULA counter layout**.
 
 ---

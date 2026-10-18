@@ -1493,4 +1493,53 @@ prefilled), `61-orders-empty-hidden.png` (Orders with nothing in it) and
 `67-orders-paid-with-customer.png` (a paid order carrying its customer).
 
 The test customers and the throwaway sales were removed afterwards: the database is back to the seeded
-day (closed, with its entry) and one open shift.
+day (closed, with its entry) and one open shift.---
+
+## 22. The clock is a 24-hour one
+
+**Status: implemented and verified on the live stack.** Issue #7: *"Gunakan format 24 Jam pada
+halaman orders (pembukuan)"* — the Orders, Sessions and Payments lists printed `Oct 16, 8:31 PM`, and
+so did the POS receipt (`10/17/2026, 7:56 PM`). A shop in Jakarta does not read AM/PM.
+
+### 22.1 Two ways to render a datetime, and only one reads the language
+
+| Where | What formats it | Does `res.lang.time_format` reach it? |
+|---|---|---|
+| List and kanban cells, the POS receipt | `toLocaleDateTimeString()` — luxon's `toLocaleString(DateTime.DATETIME_MED…)`, i.e. the **locale** (`web/static/src/core/l10n/dates.js`) | **No** |
+| Datetime picker, numeric form fields | `formatDateTime(value, {numeric: true})` — `localization.dateTimeFormat`, built from the language | Yes |
+
+The locale is not the language's format: the web client sets luxon's default locale to the language
+*code* (`Settings.defaultLocale = user.lang`, `localization_service.js`), and `en_US` is a 12-hour
+locale in its own right. Verified before the fix: with `res.lang.time_format` set to `%H:%M:%S`, the
+Orders list **still printed 8:31 PM** — the language's format is simply not consulted on that path.
+
+### 22.2 Both halves, because they are two mechanisms
+
+* **`data/res_lang_data.xml`** rewrites `time_format` to `%H:%M:%S` on every *active* language that
+  still carries the AM/PM marker, on install and on every upgrade (`<function>`, not `<record>`:
+  base's language data is `noupdate`, the trap §12 already documents for IDR). This is what the
+  picker, the numeric fields and the server-side reports read.
+* **`static/src/l10n/clock.js`** appends the Unicode extension `-u-hc-h23` to luxon's default locale,
+  once, right after the localization service has chosen it. Intl reads that as "hour cycle 0–23", so
+  the same locale renders `20:31` with the en_US month names, date order and everything else intact.
+  `h23` and not `h24`: 0–23 is what a shop means by 24 hours; h24 prints midnight as `24:00`.
+
+The file is registered in **both** bundles (`point_of_sale._assets_pos` by the existing glob, plus
+`web.assets_backend`): the backend lists are the page the issue was filed against, and the receipt is
+the register's. `point_of_sale` also ships luxon as a global in its own bundle, which is what the
+patch reads.
+
+### 22.3 Verified
+
+Live stack, `en_US` (the database's only active language, `%I:%M:%S %p` before):
+
+| Where | Before | After |
+|---|---|---|
+| Orders list, DATE cell | `Oct 16, 10:05 AM` | **`Oct 16, 10:05`** |
+| POS receipt header | `10/17/2026, 7:56 PM` | **`10/18/2026, 20:49`** |
+| Order form, Date field | not captured before the fix (same formatter as the list) | **`Oct 18, 20:49`** |
+| `luxon.Settings.defaultLocale` in the page | `en-US` | `en-US-u-hc-h23` |
+
+Artifacts (orb-local, git-ignored): `.amp/in/artifacts/issue7-orders-24h.png` (the list) and
+`issue7-receipt-24h.png` (the receipt). The test sale used for the receipt was removed with SQL
+afterwards; the database is back to the seeded day.

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The shop's clock is a 24-hour one: 20:31, never 8:31 PM.
+
+         Odoo renders a datetime two ways and this file only reaches one of
+         them, so both halves are deliberate:
+
+           * the language's `time_format` (strftime) is what the datetime
+             picker, a numeric form field and the reports use; that is this
+             file;
+           * the list and kanban cells, and the POS receipt, format with the
+             *locale* instead (luxon's `toLocaleString`), which no time_format
+             can reach; that is static/src/l10n/clock.js, beside this one.
+
+         WHY A <function> AND NOT <record id="base.lang_en">: base wraps its
+         language data in <data noupdate="1">, so the ir_model_data row for
+         base.lang_en has noupdate = true and a <record> pointing at it is
+         SKIPPED on upgrade, the same trap res_currency_data.xml documents for
+         base.IDR. <function> is always executed, so this applies on install and
+         on every update, and it is idempotent: only languages that still carry
+         the AM/PM marker are touched, so a language that is already 24-hour
+         (Indonesian among them) is left exactly as it is. -->
+    <function name="write" model="res.lang">
+        <function name="search" model="res.lang">
+            <value eval="[('active', '=', True), ('time_format', 'like', '%p')]"/>
+        </function>
+        <value eval="{'time_format': '%H:%M:%S'}"/>
+    </function>
+
+</odoo>

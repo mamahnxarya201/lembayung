@@ -37,6 +37,11 @@ and keeps it usable on any tablet regardless of resolution or orientation.
   are repaired by the seeder (seed/seed.py, `rebind_the_day`), which owns that
   data — this module's own data files cannot touch pos_hr's fields at all, see
   §20.3 of the design doc.
+* **A 24-hour clock, everywhere a time is shown.** The language's `time_format`
+  is set to 24 hours (data/res_lang_data.xml) for the datetime picker, numeric
+  fields and reports, and the list/kanban cells and the POS receipt — which
+  format from the *locale* and ignore `time_format` entirely — are put on the
+  same clock by static/src/l10n/clock.js.
 * Product grid column count is derived from the viewport, never hardcoded.
 * Two controls on the order side: **Payment** and **Save Order** — the first
   commits, the second parks the order under a name the cashier types (a title
@@ -69,11 +74,17 @@ are no per-model breakpoints to maintain.
     'depends': ['point_of_sale'],
     'data': [
         'data/res_currency_data.xml',
+        'data/res_lang_data.xml',
         'views/res_config_settings_views.xml',
     ],
     'assets': {
         'point_of_sale._assets_pos': [
             'kula_pos_layout/static/src/**/*',
+        ],
+        # The 24-hour clock, in the bundle the backend lists load as well: the
+        # format is the shop's, not the screen's. See static/src/l10n/clock.js.
+        'web.assets_backend': [
+            'kula_pos_layout/static/src/l10n/clock.js',
         ],
     },
     'installable': True,
