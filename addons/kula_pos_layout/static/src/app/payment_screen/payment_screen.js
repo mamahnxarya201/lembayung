@@ -13,19 +13,24 @@ const KULA_PAYMENT_INCREMENTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000];
 const KULA_MAX_SUGGESTION = 100000;
 
 /**
- * Round `totalDue` up to the smallest multiple of each increment, drop
+ * Round `amountDue` up to the smallest multiple of each increment, drop
  * duplicates, and return the result ascending.
+ *
+ * `amountDue` is what the selected cash line still has to cover, not the
+ * order's total: on a split bill the second payer hands over the remainder, so
+ * a chip taken from the total would propose money that has already been paid
+ * (see kulaSuggestedPayments).
  *
  * The amount due itself is deliberately not a suggestion: a new cash payment
  * line already starts at that amount, so a chip for it would only repeat what
  * is on screen. For a Rp 23.000 order this returns
  * 24.000 / 25.000 / 30.000 / 40.000 / 50.000 / 100.000.
  */
-function kulaSuggestedPaymentAmounts(totalDue) {
-    if (!Number.isFinite(totalDue) || totalDue <= 0) {
+function kulaSuggestedPaymentAmounts(amountDue) {
+    if (!Number.isFinite(amountDue) || amountDue <= 0) {
         return [];
     }
-    const total = Math.ceil(totalDue);
+    const total = Math.ceil(amountDue);
     const amounts = new Set();
     for (const increment of KULA_PAYMENT_INCREMENTS) {
         const amount = Math.ceil(total / increment) * increment;
@@ -100,13 +105,29 @@ patch(PaymentScreen.prototype, {
      * rounding those up would propose money that is not being handed over.
      * Nothing is suggested before a method is chosen either — that is the
      * moment the cashier starts entering an amount.
+     *
+     * The amounts are rounded up from what the selected line still has to
+     * carry — `remainingDue` plus the line's own amount, which is the
+     * expression core uses for the largest tender that line may take — and not
+     * from the order's total. On a split bill that is the whole point: a
+     * Rp 12.000 order with Rp 5.000 already paid by QRIS leaves Rp 7.000 for
+     * the second payer, so the chips are 8.000 / 10.000 / 20.000 / 50.000 /
+     * 100.000 and the one that settles it is 10.000. Taken from the total they
+     * were 15.000 / 20.000 / 50.000 / 100.000 — money the customer had already
+     * paid part of.
+     *
+     * `remainingDue` on its own would be wrong here: it counts the selected
+     * line's own amount too, so a cash line already carrying the remainder
+     * reads zero and the chips would vanish at exactly the moment the cashier
+     * needs them.
      */
     get kulaSuggestedPayments() {
         const line = this.selectedPaymentLine;
         if (!line || !line.payment_method_id.is_cash_count) {
             return [];
         }
-        return kulaSuggestedPaymentAmounts(this.currentOrder.totalDue);
+        const amountDue = this.currentOrder.remainingDue + line.amount;
+        return kulaSuggestedPaymentAmounts(amountDue);
     },
 
     /**

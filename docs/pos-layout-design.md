@@ -1543,3 +1543,42 @@ Live stack, `en_US` (the database's only active language, `%I:%M:%S %p` before):
 Artifacts (orb-local, git-ignored): `.amp/in/artifacts/issue7-orders-24h.png` (the list) and
 `issue7-receipt-24h.png` (the receipt). The test sale used for the receipt was removed with SQL
 afterwards; the database is back to the seeded day.
+
+---
+
+## 23. The cash chips follow what the second payer owes
+
+**Status: implemented and verified on the live register.** The chips under the amount due (the
+rounded cash suggestions, `payment_screen.js`) were computed from the order's **total**. On a split
+bill that proposes money the customer has already paid part of: a Rp 12.000 order with Rp 5.000 on
+QRIS offered 15.000 / 20.000 / 50.000 / 100.000 for the second payer, whose share is Rp 7.000.
+
+### 23.1 The rule
+
+The chips are rounded up from what the **selected cash line has to carry**, which is
+`currentOrder.remainingDue + line.amount` — the expression core itself uses for the largest tender
+that line may take (`payment_screen.js`'s own amount guard).
+
+`remainingDue` alone is not it: it counts the selected line's amount too, so a cash line already
+carrying the remainder reads zero and the chips would vanish exactly when the cashier needs them
+(measured: Rp 8.000 QRIS + Rp 7.000 cash on a Rp 15.000 order gives `remainingDue = 0`). The
+feature's own rule — never suggest the amount due itself, because the line already starts there — is
+unchanged, so a round amount like Rp 10.000 yields no 11.000/12.000 chips while Rp 7.000 yields
+8.000 and 10.000.
+
+### 23.2 Verified
+
+Live register, one Rp 15.000 item, QRIS tapped and typed to Rp 8.000, then **Cash** tapped (core fills
+that line with the Rp 7.000 remainder):
+
+| | Chips |
+|---|---|
+| Before (from the Rp 15.000 total) | 16.000 / 18.000 / 20.000 / 50.000 / 100.000 |
+| After (from the Rp 7.000 the cash line carries) | **8.000 / 10.000 / 20.000 / 50.000 / 100.000** |
+
+Tapping **Rp 10.000** puts Rp 10.000 on the cash line and the order shows the Rp 3.000 to hand back
+(`Change Rp -3.000` — the sign convention the backlog already tracks as item 6, untouched here).
+
+Artifacts (orb-local, git-ignored): `.amp/in/artifacts/issue-split-chips-from-remaining.png` (the
+state above) and `issue-split-chips-applied.png` (after the tap). Nothing was validated, so no sale
+was created; the register's local draft was dropped with its IndexedDB.>>>>>>> 1e0b6ea (Follow the second payer: the cash chips come from what the line owes)
