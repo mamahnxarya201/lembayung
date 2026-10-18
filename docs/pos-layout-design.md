@@ -1223,11 +1223,20 @@ the shop cannot be closed around the dialog with a hand-made RPC.
 ### 19.4 Close Store = the other registers
 
 `pos.session.kula_close_store()` closes every *other* register of the company: `opening_control`,
-`opened` or `closing_control`. The caller's own register is excluded — it is already closed by the
-time this runs. Each register is closed in its own `try`, and the names that refused (draft orders, a
-session mid-close) come back in `failed` and are shown as a warning before the operator is logged out,
-because one counter must not be able to hold the shop open. Only a POS user or a kiosk member may
-call it.
+`opened` or `closing_control`. The caller's own register is excluded — it is closed through core's
+form once the others are done. Each register is closed in its own `try`, and the names that refused
+(draft orders, a session mid-close) come back in `failed` and are shown as a warning before the
+operator is logged out, because one counter must not be able to hold the shop open. Only a POS user or
+a kiosk member may call it.
+
+**Every answer carries all three lists.** `closed`, `failed` and `blocked` are always present — empty
+ones included — because the register reads all three when it reports what happened. That is the bug
+behind issue #11 (*"Tombol close store tidak berfungsi"*): `blocked` was in the refusal answer only, so
+the ordinary one — `{"closed": [], "failed": []}` for a shop with a single counter — made the register
+iterate `undefined` (`TypeError: result.blocked is not iterable`) and the close died there, before
+core's form was ever reached. The register's own stand-in answer, for a call that failed outright,
+carries the same three lists for the same reason. The dialog names whatever came back in `failed` or
+`blocked`; the lists are read, not probed.
 
 With one counter in the database this closes nothing, which is the correct answer for a one-register
 shop; the behaviour is what a second counter would need. **This is the one interpretation in this
@@ -1248,7 +1257,8 @@ every run:
 | Cancel | dialog gone, register intact, session still `opened`, nothing sent |
 | **Close Shift** (a second register open) | core's closing form → session `closed` → `/web/login`; the other register still `opened`; `kula_close_store` **not** called |
 | **Close Store** (a second register open) | a `pos.session/kula_close_store` call first; **both** sessions `closed` (the other one first), then `/web/login` |
-| **Close Store** with a register that refuses (a draft order on it) | that register stays `opened`, the register shows *Some registers stayed open* naming it and the reason, and the flow continues |
+| **Close Store** with an unpaid order on another register, the client's pre-check bypassed on purpose (the race the server-side check exists for) | the answer is `{"closed": [], "failed": [], "blocked": ["Kula Counter 2 — Unpaid order — Rp 10,000"]}`; the register shows *Some registers stayed open* naming it and the reason, the flow continues, and that register stays `opened` |
+| **Close Store** with nothing unpaid anywhere (issue #11) | core's closing form opens, the session closes, the day is posted, `/web/login`; the answer is `{"closed": [], "failed": [], "blocked": []}` |
 | Either answer | ends on `/web/login` (Odoo's login form), with the session destroyed |
 | Closing the seeded day | produced `POSS/2026/10/0001`, posted, Rp 148,000 — the branch §19.1 says would otherwise be skipped |
 
@@ -1265,6 +1275,10 @@ the store), `59-cart-blocks-close.png` (a cart with one kopi on it stopping the 
 
 The labelled four-panel copy that GitHub issue #4 links to is committed as
 [`docs/images/close-register-flow.png`](images/close-register-flow.png).
+
+The before/after for issue #11 is committed as
+[`docs/images/issue11-close-store.png`](images/issue11-close-store.png): the error dialog Close Store
+died on, core's closing form, the login page, and an unpaid order still refusing the close.
 
 One piece of core behaviour worth knowing: after a close, loading the register again creates an
 `opening_control` session for the config by itself, so the "Open Register" screen has something to

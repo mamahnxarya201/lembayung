@@ -144,6 +144,12 @@ class PosSession(models.Model):
         mid-way through closing is reported in `failed` instead of stopping the
         others.
 
+        Every answer carries all three lists -- `closed`, `failed` and `blocked`
+        -- empty ones included, because the register reads all three when it
+        reports what happened (issue #11: `blocked` used to appear only on the
+        refusal, and the successful answer made the caller iterate `undefined`,
+        which killed the close before core's form was ever reached).
+
         `opening_control` counts as open: it is the session the register creates
         for itself on load, before anyone has confirmed the opening cash, and a
         shop that is closing should not leave one of those behind either.
@@ -173,4 +179,6 @@ class PosSession(models.Model):
                 failed.append(f"{session.name}: {error.args[0] if error.args else error}")
             else:
                 closed.append(session.name)
-        return {"closed": closed, "failed": failed}
+        # `blocked` is empty by now -- the refusal above returned early -- and it
+        # is named anyway: the answer has the same shape every time.
+        return {"closed": closed, "failed": failed, "blocked": blocked}

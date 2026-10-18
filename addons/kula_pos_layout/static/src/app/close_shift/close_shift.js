@@ -232,8 +232,11 @@ patch(PosStore.prototype, {
             return await this.data.call("pos.session", "kula_close_store", [[this.session.id]]);
         } catch (error) {
             // The shop is closing either way: a register that cannot even be
-            // asked about is reported like one that refused.
-            return { closed: [], failed: [error.message || String(error)] };
+            // asked about is reported like one that refused. The answer keeps
+            // the server's shape, `blocked` included: the caller reads all three
+            // lists, and a stand-in answer missing one is what broke Close Store
+            // in issue #11.
+            return { closed: [], failed: [error.message || String(error)], blocked: [] };
         }
     },
 
