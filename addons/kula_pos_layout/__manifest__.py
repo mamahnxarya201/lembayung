@@ -52,6 +52,12 @@ and keeps it usable on any tablet regardless of resolution or orientation.
   API asks for `point_of_sale.group_pos_user`, which the kiosk roles deliberately
   do not carry, so the closing methods are opened for kiosk members here
   (models/pos_session.py) rather than by widening the roles.
+* The payment screen's **Customer** button asks for a name, an email and a
+  WhatsApp number — this module's own form, in the Save Order popup's clothes —
+  and puts that customer on the order, so the name reaches the receipt, the
+  backend and the Orders list. Core's Invoice button is removed from that screen
+  (this shop does not invoice from the till), and the Orders list hides the
+  register's own empty order and shows the customer's name on a paid one.
 * Numpad reduced to quantity entry, since Price/Disc modes are disabled here.
 * Every order line carries its own -/+ stepper and a delete button, so a line can
   be decremented or removed in one tap instead of select-then-numpad, and can be

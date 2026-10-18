@@ -1,5 +1,7 @@
 import { patch } from "@web/core/utils/patch";
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
+import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { KulaCustomerPopup } from "../customer_popup/customer_popup";
 
 /**
  * Cash amounts a customer is likely to hand over, in rupiah. Each one is a
@@ -120,5 +122,38 @@ patch(PaymentScreen.prototype, {
         }
         this.numberBuffer.set(amount.toString());
         this.updateSelectedPaymentline(amount);
+    },
+
+    /**
+     * The Customer button (payment_screen.xml): ask for a name, an email and a
+     * WhatsApp number, then put that customer on the order.
+     *
+     * The record is found or created server-side
+     * (res.partner.kula_find_or_create_customer -- a cashier may not write a
+     * partner, and widening the role for this is not worth it), read back into
+     * the register's own models so the order carries a real record, and set on
+     * the order. That is what makes the name appear on the receipt, on the order
+     * in the backend, and in the Orders list (ticket_screen.js).
+     *
+     * Dismissed means dismissed: the order keeps the customer it had.
+     */
+    async kulaEditCustomer() {
+        const order = this.currentOrder;
+        const partner = order.getPartner();
+        const payload = await makeAwaitable(this.dialog, KulaCustomerPopup, {
+            name: partner?.name || "",
+            email: partner?.email || "",
+            whatsapp: partner?.phone || "",
+        });
+        if (!payload) {
+            return;
+        }
+        const { id } = await this.pos.data.call("res.partner", "kula_find_or_create_customer", [
+            payload.name,
+            payload.email,
+            payload.whatsapp,
+        ]);
+        const [customer] = await this.pos.data.read("res.partner", [id]);
+        order.setPartner(customer);
     },
 });

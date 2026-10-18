@@ -14,17 +14,24 @@
          puts the title on top and leaves core's two lines in place underneath.
 
          `order` comes from the screen's own t-foreach scope, and `kula_title` is
-         this module's field on pos.order (models/pos_order.py). -->
+         this module's field on pos.order (models/pos_order.py).
+
+         The two labels differ on purpose. The tablet's table has a column of its
+         own for the customer (`order.partner_id.name`, core's), so the line here
+         stays the parked title; the phone's card has no such column, so there the
+         line falls back to the customer name — an order paid straight from the
+         payment screen was never parked, and without that fallback its row would
+         name nobody. Both labels live in ticket_screen.js. -->
     <t t-name="kula_pos_layout.TicketScreen"
        t-inherit="point_of_sale.TicketScreen"
        t-inherit-mode="extension">
 
         <xpath expr="//td[contains(@class, 'order-name')]//div[hasclass('fw-bolder')]" position="before">
-            <div t-if="order.kula_title" class="kula-ticket-title" t-esc="order.kula_title"/>
+            <div t-if="this.kulaOrderLabel(order)" class="kula-ticket-title" t-esc="this.kulaOrderLabel(order)"/>
         </xpath>
 
         <xpath expr="//div[contains(@class, 'order-name')]//div[hasclass('fw-bolder')]" position="before">
-            <div t-if="order.kula_title" class="kula-ticket-title" t-esc="order.kula_title"/>
+            <div t-if="this.kulaMobileOrderLabel(order)" class="kula-ticket-title" t-esc="this.kulaMobileOrderLabel(order)"/>
         </xpath>
     </t>
 </templates>

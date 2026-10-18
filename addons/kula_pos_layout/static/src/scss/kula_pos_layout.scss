@@ -616,7 +616,10 @@ $kula-radius: 10px;
    the colors are declared here and the `:hover`/`:active` selectors carry the
    extra class to out-specify Bootstrap's own `.btn:hover`.
    -------------------------------------------------------------------------- */
-.btn.kula-save-order {
+/* Two buttons, one look: the Save Order popup and the Customer popup are the
+   same kind of step, so their primary actions are the same colour. */
+.btn.kula-save-order,
+.btn.kula-save-customer {
     background-color: #0e7490;
     border-color: #0e7490;
     color: #ffffff;

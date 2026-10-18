@@ -1413,3 +1413,84 @@ takings. The full 1440×900 capture is `.amp/in/artifacts/issue9-orders-cashier.
 git-ignored). The throwaway sales used for the runs above were removed with SQL afterwards (a paid
 `pos.order` cannot be deleted through the ORM — see the backlog recipe) and the database is back to
 the seeded day, with the shift's cashier repaired.
+
+## 21. The customer on a payment, and the empty order in the list
+
+Commanded: *"in order payment (validating order) delete the invoice button. and change the customer
+button, when clicked customer button will shown a pop up to fill customer data, a form which hold
+name / email / whatsapp … add close button too … and even if it validated (not saved first) the
+customer name should show up too in kiosk orders list"*. The Save Order popup was named as the UI
+reference, and the third screenshot showed the row in the Orders list where the name belongs.
+
+### 21.1 The Customer form
+
+`customer_popup/customer_popup.{js,xml}` — three fields, one Save, in the Save Order popup's clothes
+(same labels, input sizes and footer, and the dialog's own ✗ in the header), because both are the same
+kind of step: a small form a cashier fills in on a tablet, mid-sale. The name is the one required
+field; email and WhatsApp are optional. Dismissing keeps the customer the order already had, and
+reopening the form prefills all three from that customer.
+
+The button it replaces is core's `.partner-button`, which opened the partner *list* — the wrong first
+tap at this counter, where the customer is somebody standing there rather than a record that already
+exists. One attribute edit re-points it (`payment_screen.xml`), so pos_hr's inheritance of the same
+template is untouched.
+
+Saving goes through `res.partner.kula_find_or_create_customer` (models/res_partner.py), for one
+reason: **`res.partner` is read-only for a plain internal user**, and a cashier is one — the write is
+allowed for Partner Managers only. Widening the role for this is exactly what kula_security exists to
+avoid, so the write happens server-side on the operator's behalf: sudo, but for these three fields and
+nothing else, behind this one entry point. The method matches an existing customer on email or phone
+before creating one (a repeat visitor types the same number), and only *fills blanks* on a match — a
+field the shop already filled in is the shop's.
+
+The number lands in `res.partner.phone`: core has no WhatsApp field, and that is the field Odoo prints
+and exports. "WhatsApp" is the label this shop puts on it.
+
+### 21.2 The Invoice button is gone
+
+`canInvoice` is off in this shop, so core's button rendered as a "Not available" box taking half the
+row. It is removed outright (`//button[contains(@class, 'js_invoice')]`, an empty replace), and the
+Customer button takes the full width core's half-width layout would otherwise leave half empty. The
+invoicing *flow* is untouched — with the setting on, an order can still be invoiced from the (⋯)
+popup.
+
+### 21.3 The "Rp 0 / Ongoing" order
+
+Not a bug in this module, but worth writing down: **the register always keeps one empty order open** —
+the cart being rung up — and core's Orders list shows every order that is not finalized
+(`activeOrderFilter`), so that empty cart sat in the list as "Rp 0 / Ongoing" even when nothing had
+ever been put on it. It reads like an order somebody left behind.
+
+`ticket_screen.js` filters it out: an order with no lines *and* no payments is not an order yet. The
+moment a line is added, or a payment is started, it is in the list again — and the row no longer gets
+a delete button it has nothing to delete with.
+
+### 21.4 The customer name in the Orders list
+
+Two labels, because the two layouts differ (ticket_screen.js):
+
+| Layout | The line above the order number |
+|---|---|
+| tablet (table) | `kula_title` only — the title typed when parking. Core already prints `partner_id.name` in a column of its own, and repeating it above the order number would print the same name twice on one row |
+| phone (card) | `kula_title`, else the customer's name — the card has no partner column, and an order paid straight through has no title, so without the fallback its row would name nobody |
+
+### 21.5 Verified
+
+Playwright against the orb's Chrome, 1024×768, DPR 2, cashier `cashier@kula.example`, JS errors 0:
+
+| Check | Result |
+|---|---|
+| Payment screen | `.js_invoice` 0 nodes; Customer button full width (318px of a 320px pane) |
+| Customer button | opens `Name / Email / WhatsApp`, all three empty for a fresh order |
+| Save | creates the customer, sets it on the order, button reads `Aryana`; reopened form prefilled with all three values |
+| Cancel | order keeps the customer it had; nothing written |
+| Orders list, empty cart | no row at all (was `Rp 0 / Ongoing`) |
+| Validate a sale with a customer | the "Paid" filter lists it with the name in the customer column, and the Active list shows it in the Receipt state |
+
+Stills, `.amp/in/artifacts/` (orb-local, git-ignored): `62-payment-buttons.png` (no Invoice,
+full-width Customer), `63-customer-form.png` / `65-customer-prefilled.png` (the form, filled and
+prefilled), `61-orders-empty-hidden.png` (Orders with nothing in it) and
+`67-orders-paid-with-customer.png` (a paid order carrying its customer).
+
+The test customers and the throwaway sales were removed afterwards: the database is back to the seeded
+day (closed, with its entry) and one open shift.

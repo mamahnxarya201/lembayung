@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <!-- Three fields and two buttons, in the Save Order popup's clothes: same
+         labels, same input sizes, same footer. The header carries the dialog's
+         own close button, so the ✗, Cancel and the backdrop all lead out. -->
+    <t t-name="kula_pos_layout.CustomerPopup">
+        <Dialog title.translate="Customer" size="'md'" footer="false"
+                bodyClass="'kula-save-form kula-customer-form'">
+            <label class="kula-field">
+                <span class="kula-field-label">Name</span>
+                <input type="text" class="form-control form-control-lg kula-input"
+                       t-model="this.state.name" placeholder="e.g. Aryana"
+                       t-ref="nameInput"/>
+            </label>
+
+            <label class="kula-field">
+                <span class="kula-field-label">Email</span>
+                <input type="email" class="form-control kula-input"
+                       t-model="this.state.email" placeholder="e.g. aryana@email.com"/>
+            </label>
+
+            <label class="kula-field">
+                <span class="kula-field-label">WhatsApp</span>
+                <input type="tel" class="form-control kula-input"
+                       t-model="this.state.whatsapp" placeholder="e.g. 0812 3456 7890"/>
+            </label>
+
+            <div class="kula-form-actions">
+                <button type="button" class="btn btn-secondary btn-lg"
+                        t-on-click="() => this.props.close()">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-lg kula-save-customer"
+                        t-att-disabled="!this.canSave"
+                        t-on-click="() => this.confirm()">
+                    <i class="fa fa-user me-2" aria-hidden="true"/>
+                    Save Customer
+                </button>
+            </div>
+        </Dialog>
+    </t>
+</templates>
