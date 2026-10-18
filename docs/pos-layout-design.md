@@ -1407,7 +1407,9 @@ takings, plus the administrator's and the cashier's test sales):
 260-1-000007 … 260-1-000001  Rp 10,000…15,000  [K] Kula Cashier   -- the seed
 ```
 
-Artifact: `.amp/in/artifacts/issue9-orders-cashier.png` (orb-local, git-ignored). The throwaway sales
-used for the runs above were removed with SQL afterwards (a paid `pos.order` cannot be deleted
-through the ORM — see the backlog recipe) and the database is back to the seeded day, with the
-shift's cashier repaired.
+Artifacts: [`docs/images/cashier-logging-admin-vs-kiosk.png`](images/cashier-logging-admin-vs-kiosk.png) —
+the table above, cropped for the issue comment, with the administrator's two rows beside the day of
+takings. The full 1440×900 capture is `.amp/in/artifacts/issue9-orders-cashier.png` (orb-local,
+git-ignored). The throwaway sales used for the runs above were removed with SQL afterwards (a paid
+`pos.order` cannot be deleted through the ORM — see the backlog recipe) and the database is back to
+the seeded day, with the shift's cashier repaired.
