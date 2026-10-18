@@ -2,6 +2,39 @@ import { patch } from "@web/core/utils/patch";
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
 
 /**
+ * Cash amounts a customer is likely to hand over, in rupiah. Each one is a
+ * round multiple of a note/coin the counter actually sees.
+ */
+const KULA_PAYMENT_INCREMENTS = [1000, 2000, 5000, 10000, 20000, 50000, 100000];
+
+/** No suggestion above this: the point is a fast tap, not a second numpad. */
+const KULA_MAX_SUGGESTION = 100000;
+
+/**
+ * Round `totalDue` up to the smallest multiple of each increment, drop
+ * duplicates, and return the result ascending.
+ *
+ * The amount due itself is deliberately not a suggestion: a new cash payment
+ * line already starts at that amount, so a chip for it would only repeat what
+ * is on screen. For a Rp 23.000 order this returns
+ * 24.000 / 25.000 / 30.000 / 40.000 / 50.000 / 100.000.
+ */
+function kulaSuggestedPaymentAmounts(totalDue) {
+    if (!Number.isFinite(totalDue) || totalDue <= 0) {
+        return [];
+    }
+    const total = Math.ceil(totalDue);
+    const amounts = new Set();
+    for (const increment of KULA_PAYMENT_INCREMENTS) {
+        const amount = Math.ceil(total / increment) * increment;
+        if (amount > total && amount <= KULA_MAX_SUGGESTION) {
+            amounts.add(amount);
+        }
+    }
+    return [...amounts].sort((a, b) => a - b);
+}
+
+/**
  * Tender numpad, rebuilt for IDR.
  *
  * Layout:          7 8 9
@@ -55,5 +88,37 @@ patch(PaymentScreen.prototype, {
             return;
         }
         this.numberBuffer.sendKey(value);
+    },
+
+    /**
+     * The suggestions shown under the amount due (payment_screen.xml).
+     *
+     * Only once a *cash* payment line is selected: the cards have no change
+     * and the QRIS amount is whatever the customer's phone is charged, so
+     * rounding those up would propose money that is not being handed over.
+     * Nothing is suggested before a method is chosen either — that is the
+     * moment the cashier starts entering an amount.
+     */
+    get kulaSuggestedPayments() {
+        const line = this.selectedPaymentLine;
+        if (!line || !line.payment_method_id.is_cash_count) {
+            return [];
+        }
+        return kulaSuggestedPaymentAmounts(this.currentOrder.totalDue);
+    },
+
+    /**
+     * Put a suggested amount on the selected cash line, and on the number
+     * buffer too: the buffer is what the next keypress edits, and `set()`
+     * records the value as `lastSet`, so typing replaces the suggestion
+     * instead of appending to it.
+     */
+    kulaApplySuggestedPayment(amount) {
+        const line = this.selectedPaymentLine;
+        if (!line || !line.payment_method_id.is_cash_count) {
+            return;
+        }
+        this.numberBuffer.set(amount.toString());
+        this.updateSelectedPaymentline(amount);
     },
 });

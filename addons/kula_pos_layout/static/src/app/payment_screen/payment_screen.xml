@@ -18,4 +18,31 @@
             <attribute name="onClick.bind">kulaNumpadClick</attribute>
         </xpath>
     </t>
+
+    <!-- Suggested cash amounts, directly under the big amount due.
+         PaymentScreenDue is a template of its own (called by both the desktop
+         and the small-screen layout), so the chips appear in both without
+         touching the pane markup. The list itself is computed by
+         kulaSuggestedPayments, which returns nothing until a cash payment
+         line is selected. -->
+    <t t-name="kula_pos_layout.PaymentScreenDue"
+       t-inherit="point_of_sale.PaymentScreenDue"
+       t-inherit-mode="extension">
+
+        <xpath expr="//div[contains(@class, 'total')]" position="after">
+            <div t-if="this.kulaSuggestedPayments.length"
+                 class="kula-suggestions"
+                 role="group"
+                 aria-label="Suggested cash amounts">
+                <button t-foreach="this.kulaSuggestedPayments"
+                        t-as="amount"
+                        t-key="amount"
+                        type="button"
+                        class="kula-suggestion"
+                        t-on-click="() => this.kulaApplySuggestedPayment(amount)">
+                    <t t-esc="this.env.utils.formatCurrency(amount)"/>
+                </button>
+            </div>
+        </xpath>
+    </t>
 </templates>

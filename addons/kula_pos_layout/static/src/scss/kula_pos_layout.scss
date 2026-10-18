@@ -217,6 +217,52 @@ $kula-radius: 10px;
    000 / 00 keys were replaced by a single "00" key inside the pad itself, sitting
    next to 0 where the (now useless) decimal point used to be. */
 
+/* Suggested cash amounts, under the amount due. Tapping one fills the selected
+   cash line with that amount; the list only exists while a cash payment line is
+   selected (payment_screen.js), so the row never appears over an empty screen
+   or above a QRIS tender.
+
+   The row wraps rather than scrolls: six or seven chips fit the summary pane at
+   a tablet width, and two lines are still reachable in the thumb zone. */
+.kula-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: clamp(10px, 1.8vh, 20px);
+    padding: 0 clamp(8px, 1.2vw, 16px);
+}
+
+.kula-suggestion {
+    min-width: clamp(96px, 8vw, 124px);
+    height: clamp(40px, 6.4vh, 54px);
+    padding: 0 clamp(8px, 1vw, 16px);
+    border: 1px solid #c9c1dd;
+    border-radius: $kula-radius;
+    background: #fff;
+    color: #4b3f7a;
+    font: inherit;
+    font-size: clamp(14px, 1.7vh, 17px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+        border-color: #71639e;
+        background: #f4f1fa;
+    }
+
+    &:active {
+        background: #e9e3f5;
+    }
+
+    &:focus-visible {
+        outline: 2px solid #71639e;
+        outline-offset: 2px;
+    }
+}
+
 /* -----------------------------------------------------------------------------
    10. ReceiptScreen — the printed receipt on the left, the order actions on the
        right.
