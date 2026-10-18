@@ -1263,6 +1263,9 @@ followed by `54-closing-form-after-refusal.png`), `56-unpaid-order-blocks-shift.
 stopping the shift), `57-unpaid-order-blocks-store.png` (an unpaid order on another register stopping
 the store), `59-cart-blocks-close.png` (a cart with one kopi on it stopping the shift) and `52-web-login-after-close.png` (Odoo's login page it ends on).
 
+The labelled four-panel copy that GitHub issue #4 links to is committed as
+[`docs/images/close-register-flow.png`](images/close-register-flow.png).
+
 One piece of core behaviour worth knowing: after a close, loading the register again creates an
 `opening_control` session for the config by itself, so the "Open Register" screen has something to
 open. It is not this module's doing, and `kula_close_store` treats it as open.
