@@ -107,26 +107,28 @@ patch(PaymentScreen.prototype, {
      * moment the cashier starts entering an amount.
      *
      * The amounts are rounded up from what the selected line still has to
-     * carry — `remainingDue` plus the line's own amount, which is the
-     * expression core uses for the largest tender that line may take — and not
-     * from the order's total. On a split bill that is the whole point: a
+     * carry — the order's total minus every *other* line, which is what core
+     * puts on a new cash line and the largest tender that line may take — and
+     * not from the order's total. On a split bill that is the whole point: a
      * Rp 12.000 order with Rp 5.000 already paid by QRIS leaves Rp 7.000 for
      * the second payer, so the chips are 8.000 / 10.000 / 20.000 / 50.000 /
-     * 100.000 and the one that settles it is 10.000. Taken from the total they
-     * were 15.000 / 20.000 / 50.000 / 100.000 — money the customer had already
-     * paid part of.
+     * 100.000 and the one that settles it is 10.000.
      *
-     * `remainingDue` on its own would be wrong here: it counts the selected
-     * line's own amount too, so a cash line already carrying the remainder
-     * reads zero and the chips would vanish at exactly the moment the cashier
-     * needs them.
+     * Deliberately not `remainingDue + line.amount`, which reads the same but
+     * only while the order is still covered: `remainingDue` clamps to zero once
+     * it is not, so a cash line over-tendered by a chip — the common case, the
+     * chip is bigger than the bill — moved the chips on every tap and the set
+     * appeared to shrink away as it was used (issue #10). This expression does
+     * not depend on the selected line's own amount, so tapping a chip leaves the
+     * chips exactly as they were.
      */
     get kulaSuggestedPayments() {
         const line = this.selectedPaymentLine;
         if (!line || !line.payment_method_id.is_cash_count) {
             return [];
         }
-        const amountDue = this.currentOrder.remainingDue + line.amount;
+        const order = this.currentOrder;
+        const amountDue = order.totalDue - order.amountPaid + line.amount;
         return kulaSuggestedPaymentAmounts(amountDue);
     },
 

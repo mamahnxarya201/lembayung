@@ -1555,30 +1555,41 @@ QRIS offered 15.000 / 20.000 / 50.000 / 100.000 for the second payer, whose shar
 
 ### 23.1 The rule
 
-The chips are rounded up from what the **selected cash line has to carry**, which is
-`currentOrder.remainingDue + line.amount` — the expression core itself uses for the largest tender
-that line may take (`payment_screen.js`'s own amount guard).
+The chips are rounded up from what the **selected cash line has to carry**: the order's total minus
+every *other* line (`order.totalDue - order.amountPaid + line.amount`).
 
-`remainingDue` alone is not it: it counts the selected line's amount too, so a cash line already
-carrying the remainder reads zero and the chips would vanish exactly when the cashier needs them
-(measured: Rp 8.000 QRIS + Rp 7.000 cash on a Rp 15.000 order gives `remainingDue = 0`). The
-feature's own rule — never suggest the amount due itself, because the line already starts there — is
-unchanged, so a round amount like Rp 10.000 yields no 11.000/12.000 chips while Rp 7.000 yields
-8.000 and 10.000.
+Two wrong answers were tried on the way there, and each is worth knowing:
+
+* **The order's total** (the original): proposes money the customer has already paid part of. A
+  Rp 12.000 order with Rp 5.000 on QRIS offered 15.000 / 20.000 / 50.000 / 100.000 to the second
+  payer, whose share is Rp 7.000.
+* **`remainingDue + line.amount`**: reads the same while the order is still covered, but
+  `remainingDue` **clamps to zero** once it is not — and a chip is bigger than the bill by design, so
+  the first tap over-tenders the order, the base collapses to the line's own amount, and the chip set
+  shrinks away as it is used. That is issue #10: *"Tombol pembulatan muncul dan hilang saat
+  ditekan."* Measured on a Rp 15.000 order, tapping the Rp 16.000 chip: the base went 15.000 → 16.000
+  and the chips went `16.000 / 20.000 / 50.000 / 100.000` → `20.000 / 50.000 / 100.000`.
+
+The expression above does not depend on the selected line's own amount, so tapping a chip leaves the
+chips exactly as they were. Visibility is unchanged, and is the rule the owner asked for: the chips
+appear only while a **cash** line is selected — with a QRIS line selected there are none at all — and
+the feature's own rule that the amount due itself is never a suggestion still holds (a round base
+like Rp 10.000 yields no 11.000/12.000 chips, while Rp 7.000 yields 8.000 and 10.000).
 
 ### 23.2 Verified
 
-Live register, one Rp 15.000 item, QRIS tapped and typed to Rp 8.000, then **Cash** tapped (core fills
-that line with the Rp 7.000 remainder):
+Live register, one Rp 15.000 item, and the same tap in both states:
 
-| | Chips |
-|---|---|
-| Before (from the Rp 15.000 total) | 16.000 / 18.000 / 20.000 / 50.000 / 100.000 |
-| After (from the Rp 7.000 the cash line carries) | **8.000 / 10.000 / 20.000 / 50.000 / 100.000** |
+| | Selected line | Base | Chips |
+|---|---|---|---|
+| Before the fix | Cash 16.000 | 16.000 | 20.000 / 50.000 / 100.000 |
+| After the fix | Cash 16.000 | **15.000** | **16.000 / 20.000 / 50.000 / 100.000** |
 
-Tapping **Rp 10.000** puts Rp 10.000 on the cash line and the order shows the Rp 3.000 to hand back
-(`Change Rp -3.000` — the sign convention the backlog already tracks as item 6, untouched here).
+And the split bill from §22, tapped: base stays 7.000, chips stay
+8.000 / 10.000 / 20.000 / 50.000 / 100.000, and the Rp 10.000 tap still puts Rp 10.000 on the line
+(Change Rp -3.000, the sign convention backlog item 6 already tracks).
 
-Artifacts (orb-local, git-ignored): `.amp/in/artifacts/issue-split-chips-from-remaining.png` (the
-state above) and `issue-split-chips-applied.png` (after the tap). Nothing was validated, so no sale
-was created; the register's local draft was dropped with its IndexedDB.>>>>>>> 1e0b6ea (Follow the second payer: the cash chips come from what the line owes)
+Artifacts: [`docs/images/issue10-chips-before.png`](images/issue10-chips-before.png) and
+[`issue10-chips-after.png`](images/issue10-chips-after.png) — the two captures the issue comment
+carries. Nothing was validated, so no sale was created; the register's local draft was dropped with
+its IndexedDB.
