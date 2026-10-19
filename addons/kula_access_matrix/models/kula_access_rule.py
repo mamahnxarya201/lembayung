@@ -234,7 +234,9 @@ class KulaAccessRule(models.Model):
         if group_ids is None or group_ids is False:
             groups = Groups.browse([])
             for xmlid in self.DEFAULT_ROLE_XMLIDS:
-                groups |= self.env.ref(xmlid, raise_if_not_found=False)
+                group = self.env.ref(xmlid, raise_if_not_found=False)
+                if group:
+                    groups |= group
             return groups
         return Groups.browse([int(group_id) for group_id in group_ids]).exists()
 
