@@ -1677,6 +1677,11 @@ around it, including the exact step core runs once the prompt is accepted —
 | a cart mid-order when the tab yields | nothing navigates, so nothing is reloaded: after the other tab took session 1, unlocking the yielded tab showed `Americano x1`, `Rp 10,000` still on it |
 | server log, 12 minutes after the fix | 4 `/odoo` requests in total, all inside the 14 s of sign-in plus the curl probes; nothing repeats |
 
+The labelled four-panel copy the issue comment links to is committed as
+[`docs/images/issue2-install-app.png`](images/issue2-install-app.png): the installer page as the
+cashier, the register still selling, the tab that yields stopping on Unlock, and the measured trace of
+the loop before the fix.
+
 Two honest limits. First, the native install dialog itself was not exercised here — on the tablet the
 operator taps Install and Chrome asks; nothing in this fix touches that, and the page's own state
 before it (`isAvailable`, manifest, icon, name) is what was captured. Second, core's rule that one
