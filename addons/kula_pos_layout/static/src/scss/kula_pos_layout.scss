@@ -18,25 +18,38 @@ $kula-radius: 10px;
 
 /* -----------------------------------------------------------------------------
    1. Pane swap — menu on the left, order on the right
+
    `.product-screen` is a `d-flex` row whose children are `.leftpane` (the order,
    numpad and paypad) then `.rightpane` (the products). row-reverse flips them
    visually while the DOM — and therefore the tab order — stays as core built it.
+
+   Scoped to md and up because that is where two panes exist at all: below 768px
+   core's own `isSmallProductScreen` branch shows ONE pane at a time — the menu,
+   with a Pay/Cart bar at the bottom switching to the order — and flips nothing.
+   Scoping it is not cosmetic. A `column-reverse` down there stacks the two panes
+   in a flex column whose height is content-sized, and a content-sized column
+   hands every descendant an indefinite height: the order lines stop scrolling
+   and grow instead, the pane ends up taller than the screen, Payment and Save
+   Order slide below the fold, and the whole register has to be scrolled to reach
+   them. Left as core wrote it, the same order scrolls inside its own pane.
    -------------------------------------------------------------------------- */
-.product-screen {
-    flex-direction: row-reverse;
+@include media-breakpoint-up(md) {
+    .product-screen {
+        flex-direction: row-reverse;
 
-    /* Core pins the order pane to $pos-left-pane-width (and a tablet value).
-       Replace both bounds with one proportional clamp: wide enough for a
-       3-column numpad, never wide enough to starve the menu on a large screen. */
-    .leftpane {
-        width: clamp(300px, 32%, 430px);
-        max-width: clamp(300px, 32%, 430px);
+        /* Core pins the order pane to $pos-left-pane-width (and a tablet value).
+           Replace both bounds with one proportional clamp: wide enough for a
+           3-column numpad, never wide enough to starve the menu on a large screen. */
+        .leftpane {
+            width: clamp(300px, 32%, 430px);
+            max-width: clamp(300px, 32%, 430px);
 
-        /* core uses `border-end` (border-right); after the flip the divider must
-           sit on the pane's inner edge instead. Core drops it again below 992px,
-           but `border-left` is ours and has to be removed explicitly there. */
-        border-right: 0 !important;
-        border-left: 1px solid #{$kula-border} !important;
+            /* core uses `border-end` (border-right); after the flip the divider must
+               sit on the pane's inner edge instead. Core drops it again below 992px,
+               but `border-left` is ours and has to be removed explicitly there. */
+            border-right: 0 !important;
+            border-left: 1px solid #{$kula-border} !important;
+        }
     }
 }
 
@@ -53,11 +66,13 @@ $kula-radius: 10px;
     grid-template-columns:
         repeat(auto-fill, minmax(clamp(var(--kula-card-min, 150px), 11vw, 200px), 1fr)) !important;
 
-    /* Cards scale with viewport height so a 768-tall screen never clips the grid.
-       `border-width: 1px` flattens the 6px bottom border core gives cards inside
-       .rightpane; scoping to the main grid keeps the combo popup untouched. */
+    /* Cards scale with viewport height so a 768-tall screen never clips the grid,
+       and with a floor low enough for a landscape phone: at 412px tall a 130px
+       card would show barely two rows. `border-width: 1px` flattens the 6px
+       bottom border core gives cards inside .rightpane; scoping to the main grid
+       keeps the combo popup untouched. */
     .product {
-        min-height: clamp(130px, 20vh, 170px);
+        min-height: clamp(112px, 18vh, 170px);
         border-width: 1px;
         border-radius: $kula-radius;
     }
@@ -295,22 +310,21 @@ $kula-radius: 10px;
 }
 
 /* -----------------------------------------------------------------------------
-   11. Below-tablet floor: stack the panes instead of crushing them.
-   Not a target — a non-breaking fallback so nothing is ever unusable.
-   DOM order is leftpane then rightpane, so column-reverse puts the menu on top.
-   -------------------------------------------------------------------------- */
-@media (max-width: 760px) {
-    .product-screen {
-        flex-direction: column-reverse;
+   11. Below 768px: core's own single-pane register, not a stacked copy of it
 
-        .leftpane {
-            width: auto;
-            max-width: none;
-            border-left: 0 !important;
-            border-top: 1px solid #{$kula-border} !important;
-        }
-    }
-}
+   An earlier revision stacked the two panes here with `flex-direction:
+   column-reverse`. That is gone, and deliberately not replaced: core already
+   has a phone layout — `.leftpane` and `.rightpane` are shown one at a time
+   (`.d-none` on whichever is not current) and a Pay/Cart bar at the bottom
+   switches between them — and it is the better answer at this size. The menu is
+   what a customer looks at, the order is one tap away, and both panes get the
+   full width instead of a 300px column.
+
+   What our own styles still have to do down here is only what core cannot know:
+   keep the panes inside the visible viewport (§20), keep the two big actions
+   thumb-reachable (§5, §16), and size the tiles and cards for a 400px-wide
+   screen (§14, §15).
+   -------------------------------------------------------------------------- */
 
 /* -----------------------------------------------------------------------------
    12. Order line stepper + delete (product screen order pane)
@@ -514,19 +528,32 @@ $kula-radius: 10px;
    -------------------------------------------------------------------------- */
 .kula-home {
     flex: 1 1 auto;
-    padding: 10px;
+    padding: clamp(6px, 1.1vw, 10px);
     overflow-y: auto;
 }
 
 .kula-home-grid {
     display: grid;
     /* A category tile is a destination, not a card in a list of products, so it
-       is allowed to be bigger than a card: the clamp's bounds are the card
-       grid's (section 2) scaled up, which keeps the row count following the
-       viewport exactly as the cards do. */
-    grid-template-columns:
-        repeat(auto-fill, minmax(clamp(180px, 15vw, 260px), 1fr));
-    gap: 12px;
+       is allowed to be bigger than a card, and the column count is derived from
+       the space the pane actually has.
+
+       Two rules, because the pane is not the same share of the screen in the two
+       layouts: below 768px the menu *is* the screen (core's single-pane mode), so
+       the track follows the viewport — 2 columns on a 320-430px phone, 3 from
+       about 500px. From 768px up the menu is ~68% of the screen beside the order
+       pane, so the floor is bigger: 2 columns on an 800px portrait tablet, 3 at
+       960, 4 at 1280. One rule cannot express that: `auto-fill` turns a *lower*
+       floor into *more* columns, and the same 15vw value means a 120px track on an
+       800px portrait tablet (where the pane is only 500px wide) yet a 190px one on
+       a 1280px landscape screen. The floor is what decides both, so each layout
+       gets its own. */
+    grid-template-columns: repeat(auto-fill, minmax(clamp(140px, 30vw, 240px), 1fr));
+    gap: clamp(8px, 1.1vw, 12px);
+
+    @include media-breakpoint-up(md) {
+        grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 15vw, 260px), 1fr));
+    }
 }
 
 .kula-home-tile {
@@ -551,6 +578,10 @@ $kula-radius: 10px;
     align-items: center;
     justify-content: center;
     aspect-ratio: 4 / 3;
+    /* 4:3 is the shape a tile wants, capped so a tile still fits a short screen:
+       on a 412px-tall phone in landscape the pane is ~346px tall, and two rows
+       have to fit in it. The cap only bites below a ~830px-tall viewport. */
+    max-height: 26vh;
     background: #f1f2f5;
     overflow: hidden;
 
@@ -600,11 +631,17 @@ $kula-radius: 10px;
    -------------------------------------------------------------------------- */
 .kula-popup-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 10px;
+    /* Same derivation as the tile grid: `12vw` is the useful value on a tablet,
+       and the 116px floor is what a 412px phone gets, so the popup is three
+       columns there rather than two. */
+    grid-template-columns: repeat(auto-fill, minmax(clamp(116px, 12vw, 180px), 1fr));
+    gap: clamp(6px, 0.8vw, 10px);
 
     .product {
-        min-height: 130px;
+        /* Shorter than the grid's cards on purpose: the popup is a list of one
+           category, and on a phone in landscape the dialog has ~300px to show
+           two rows of it. */
+        min-height: clamp(96px, 15vh, 130px);
         border-width: 1px;
         border-radius: $kula-radius;
     }
@@ -684,11 +721,16 @@ $kula-radius: 10px;
     font-size: 16px;
 }
 
+/* The row itself is a dialog FOOTER (save_order.xml / customer_popup.xml put it
+   in the Dialog's footer slot), not the last child of the scrolling body. That
+   is the whole reason it can never end up on top of a field: the body scrolls
+   above it and the footer is its own flex row, pinned by the dialog (§20). The
+   declarations here are only its looks. */
 .kula-form-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 4px;
+    width: 100%;
 
     .btn {
         min-width: 120px;
@@ -836,5 +878,189 @@ $kula-radius: 10px;
     .kula-close-cancel {
         margin-top: 10px;
         color: #4b5563;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   20. The visible viewport — keyboards, short screens, and scrollable everything
+
+   This is the section that makes the register usable on a phone, and the one
+   that keeps a text box from disappearing behind the soft keyboard.
+
+   **One height, everywhere.** `--kula-viewport-h` is the height of the part of
+   the page the user can see, published by static/src/viewport/kula_viewport.js
+   from `visualViewport`; `--kula-viewport-top` is how far that slice has been
+   scrolled into the layout viewport, and `--kula-viewport-bottom` is how much of
+   the layout viewport the keyboard covers at the bottom. They are the register's
+   own answer to a question the browser answers two different ways depending on
+   its version: with `interactive-widget=resizes-content` the layout viewport
+   shrinks and `100dvh` already means the visible height, while with the older
+   `resizes-visual` behaviour the layout viewport keeps its full height and the
+   keyboard simply covers its lower half — taking a `100dvh` dialog with it.
+   Sizing to `var(--kula-viewport-h, 100dvh)` is correct under both, and the
+   fallbacks (`100dvh`, `0px`) are what the properties mean on a desktop browser,
+   so nothing here depends on the script having run.
+
+   The shell first: it is the `dvh-100` box core puts the whole register in, and
+   every screen inherits its height from it. Capping it to the visible slice is
+   what makes the rest of the layout compress (and scroll) when the keyboard
+   takes half the screen, instead of running off the bottom edge unreachably.
+
+   Then the dialogs — Save Order, Customer, the product popup, the close-shift
+   question. A Bootstrap modal is a full-viewport box with a centred dialog in
+   it, and none of those three parts had a maximum height: a dialog taller than
+   the space left by the keyboard simply ran past the bottom edge, with its
+   fields and its own buttons on the wrong side of the keyboard line, and no
+   scrollbar anywhere to bring them back. So: the modal box *is* the visible
+   slice, the dialog is capped to it, its body scrolls, and its header and footer
+   stay put. The buttons then stay reachable no matter how little room is left.
+   -------------------------------------------------------------------------- */
+
+.pos.dvh-100 {
+    /* Two classes + !important beats core's single-class `.dvh-100`.
+
+       No `min()` here on purpose: Sass evaluates `min()` at compile time and
+       rejects a `var()` argument ("is not a number for `min`"), and the point is
+       moot anyway — `visualViewport.height` already *is* the layout viewport
+       height when the browser shrinks it for the keyboard, and the shorter
+       visible slice when it does not. The fallback is core's own `100dvh`. */
+    height: var(--kula-viewport-h, 100dvh) !important;
+}
+
+.o_dialog .modal {
+    /* Bootstrap pins this to the layout viewport; the visible slice can be
+       shorter and shifted (see --kula-viewport-top). */
+    top: var(--kula-viewport-top, 0px);
+    height: var(--kula-viewport-h, 100dvh);
+}
+
+.o_dialog .modal-dialog {
+    max-height: calc(var(--kula-viewport-h, 100dvh) - 16px);
+    margin-top: 8px;
+    margin-bottom: 8px;
+    /* Centred while it fits, and it always fits: the cap above is the visible
+       height minus an 8px breathing space top and bottom. */
+    display: flex;
+    align-items: center;
+}
+
+/* Three classes on purpose: core ships
+   `:not(.s_popup) > .modal .modal-content { max-height: 100% }`, which is more
+   specific than a plain `.o_dialog .modal-content` and turns the cap below into
+   a no-op — measured at 915×220, the body collapsed to 32px while the form was
+   290px tall. The same specificity, declared later, wins. */
+.o_dialog .modal .modal-content {
+    /* Not `max-height: 100%`: the dialog's own height is indefinite, so a
+       percentage resolves to none and the cap does nothing. */
+    max-height: calc(var(--kula-viewport-h, 100dvh) - 16px);
+    display: flex;
+    flex-direction: column;
+}
+
+.o_dialog .modal-header,
+.o_dialog .modal-footer {
+    flex: 0 0 auto;
+}
+
+.o_dialog .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* The drawer (section 13) is fixed to the layout viewport's edges, so it needs
+   the same treatment: with the keyboard up its footer would sit behind it. */
+.kula-sidebar-menu {
+    height: var(--kula-viewport-h, 100dvh) !important;
+    top: var(--kula-viewport-top, 0px) !important;
+    bottom: auto !important;
+}
+
+/* Core's phone dialogs are a bottom sheet: `position: fixed` with `bottom: 0`,
+   measured against the layout viewport — which is exactly what the keyboard
+   covers. Raising it by the covered height puts the sheet directly above the
+   keyboard. */
+@media (max-width: 575px) {
+    .pos .modal-dialog-centered {
+        bottom: var(--kula-viewport-bottom, 0px);
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   20.1 Short screens: the screens that are one tall column and were never meant
+        to be.
+
+   Below roughly 620px of height — a phone in landscape, or any of these screens
+   with the keyboard up — the payment screen's column (amount, methods, keypad,
+   the Validate row) is taller than the space available, and it is a flex column
+   with `overflow: hidden`: the row at the bottom, which holds Validate, was
+   simply cut off. Scrolling the screen and sticking that row to the bottom is
+   the same answer the dialogs get above.
+
+   The product screen's pads get the same treatment for the same reason: at 412px
+   tall the Payment and Save Order buttons plus the Action row are ~200px of a
+   346px pane, which leaves too little for the order — on a landscape phone they
+   tighten instead. They stay finger-sized (44px is the smallest anything gets),
+   and above 620px nothing changes.
+   -------------------------------------------------------------------------- */
+@media (max-height: 620px) {
+    .payment-screen {
+        overflow-y: auto !important;
+    }
+
+    /* The methods block is a `flex-grow-1` item with `overflow-y: auto`, so its
+       automatic minimum height is 0 and a short column is free to shrink it to
+       nothing — measured at 640×360: the container collapsed to 0px while QRIS
+       and Cash still painted, and the "Please select a payment method" box that
+       follows in DOM order painted *over* them, so no payment method could be
+       tapped at all. Keeping the block at its content height (the screen above
+       scrolls instead) is what makes the buttons stay buttons. */
+    .payment-screen > div:has(> .paymentmethods-container) {
+        flex: 0 0 auto;
+    }
+
+    .payment-screen .switchpane {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        padding-bottom: 4px;
+        background: var(--view-background-color, #f0eeee);
+    }
+
+    .pads {
+        padding-top: 4px !important;
+
+        .btn {
+            min-height: 44px;
+            padding-top: 6px;
+            padding-bottom: 6px;
+        }
+    }
+
+    .kula-pay,
+    .kula-save-order,
+    .kula-action-label {
+        font-size: 15px !important;
+    }
+
+    .control-buttons {
+        padding-top: 4px !important;
+    }
+
+    /* A dialog header is a title, a close button and ~20px of padding, and a
+       footer carries another ~30px around its buttons: on a phone with the
+       keyboard up those two are a third of what is left for the fields. */
+    .o_dialog .modal-header {
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .o_dialog .modal-title {
+        font-size: 16px;
+    }
+
+    .o_dialog .modal-footer {
+        padding-top: 6px;
+        padding-bottom: 6px;
     }
 }

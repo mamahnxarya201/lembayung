@@ -73,8 +73,16 @@ and keeps it usable on any tablet regardless of resolution or orientation.
   be decremented or removed in one tap instead of select-then-numpad, and can be
   deselected by tapping it again (core behaviour).
 
-All sizes are expressed with clamp() and one ``auto-fill`` grid rule, so there
-are no per-model breakpoints to maintain.
+* **One layout for tablet and phone, in both orientations, with the keyboard up.** Below 768px the
+  register uses core's own single-pane phone layout — the menu full width, with a Pay/Cart bar at the
+  bottom — instead of a stacked copy of the tablet layout, which is what used to break the order
+  pane there. The shell and every dialog are sized to what the user can actually see
+  (`visualViewport`), so a dialog's body scrolls and its buttons stay on screen while the soft
+  keyboard is up; the focused field is brought back into view whether the browser shrinks the layout
+  viewport for the keyboard or only the visual one. See §26 of docs/pos-layout-design.md.
+* All sizes are expressed with clamp() and one ``auto-fill`` grid rule, so there are no per-model
+  breakpoints to maintain; the only width queries are the two shape changes — the two-pane flip at
+  768px (ours) and core's phone bottom sheet below 576px.
     """,
     'depends': ['point_of_sale'],
     'data': [

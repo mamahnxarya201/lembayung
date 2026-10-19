@@ -3,9 +3,15 @@
     <!-- Two fields and two buttons, sized for a finger: the title is the one
          thing the Orders list will show about this order, and the note rides
          along on the order itself (core's general_customer_note, the field the
-         Note button writes and the receipt prints). -->
+         Note button writes and the receipt prints).
+
+         The buttons live in the dialog's own footer slot, not in the body: the
+         body is the element that scrolls when the keyboard is up (§20 of the
+         SCSS), so a footer of its own is what keeps Save and Cancel on screen
+         without ever sitting on top of a field. Same shape as the products
+         popup's footer. -->
     <t t-name="kula_pos_layout.SaveOrderPopup">
-        <Dialog title.translate="Save Order" size="'md'" footer="false"
+        <Dialog title.translate="Save Order" size="'md'" footer="true"
                 bodyClass="'kula-save-form'">
             <label class="kula-field">
                 <span class="kula-field-label">Order Title</span>
@@ -20,17 +26,19 @@
                           t-model="this.state.notes" placeholder="e.g. less sugar"/>
             </label>
 
-            <div class="kula-form-actions">
-                <button type="button" class="btn btn-secondary btn-lg"
-                        t-on-click="() => this.props.close()">
-                    Cancel
-                </button>
-                <button type="button" class="btn btn-lg kula-save-order"
-                        t-on-click="() => this.confirm()">
-                    <i class="fa fa-bookmark me-2" aria-hidden="true"/>
-                    Save Order
-                </button>
-            </div>
+            <t t-set-slot="footer">
+                <div class="kula-form-actions">
+                    <button type="button" class="btn btn-secondary btn-lg"
+                            t-on-click="() => this.props.close()">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-lg kula-save-order"
+                            t-on-click="() => this.confirm()">
+                        <i class="fa fa-bookmark me-2" aria-hidden="true"/>
+                        Save Order
+                    </button>
+                </div>
+            </t>
         </Dialog>
     </t>
 </templates>

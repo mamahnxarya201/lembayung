@@ -2,9 +2,12 @@
 <templates id="template" xml:space="preserve">
     <!-- Three fields and two buttons, in the Save Order popup's clothes: same
          labels, same input sizes, same footer. The header carries the dialog's
-         own close button, so the ✗, Cancel and the backdrop all lead out. -->
+         own close button, so the ✗, Cancel and the backdrop all lead out. The
+         buttons are the dialog's footer, not body content, for the reason the
+         Save Order popup gives: with three fields the body scrolls earlier, and
+         the actions must not ride on top of the WhatsApp field. -->
     <t t-name="kula_pos_layout.CustomerPopup">
-        <Dialog title.translate="Customer" size="'md'" footer="false"
+        <Dialog title.translate="Customer" size="'md'" footer="true"
                 bodyClass="'kula-save-form kula-customer-form'">
             <label class="kula-field">
                 <span class="kula-field-label">Name</span>
@@ -25,18 +28,20 @@
                        t-model="this.state.whatsapp" placeholder="e.g. 0812 3456 7890"/>
             </label>
 
-            <div class="kula-form-actions">
-                <button type="button" class="btn btn-secondary btn-lg"
-                        t-on-click="() => this.props.close()">
-                    Cancel
-                </button>
-                <button type="button" class="btn btn-lg kula-save-customer"
-                        t-att-disabled="!this.canSave"
-                        t-on-click="() => this.confirm()">
-                    <i class="fa fa-user me-2" aria-hidden="true"/>
-                    Save Customer
-                </button>
-            </div>
+            <t t-set-slot="footer">
+                <div class="kula-form-actions">
+                    <button type="button" class="btn btn-secondary btn-lg"
+                            t-on-click="() => this.props.close()">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-lg kula-save-customer"
+                            t-att-disabled="!this.canSave"
+                            t-on-click="() => this.confirm()">
+                        <i class="fa fa-user me-2" aria-hidden="true"/>
+                        Save Customer
+                    </button>
+                </div>
+            </t>
         </Dialog>
     </t>
 </templates>

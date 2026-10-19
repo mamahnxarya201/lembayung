@@ -112,8 +112,10 @@ Only two media queries exist, and both are **shape changes**, never sizing:
 
 - `max-width: 900px` — navbar drops its text labels to icons only (core POS does the same via
   `ui.isSmall`).
-- `max-width: 760px` — panes stack into one column. Below tablet width; a non-breaking fallback,
-  not a target.
+- `max-width: 767px` — **not ours**: below 768px core's `ProductScreen` switches to its own
+  single-pane phone layout (menu, with a Pay/Cart bar at the bottom), and the module does not fight
+  it. The pane flip and the 300-430px order column are scoped to `min-width: 768px` for that reason;
+  see §26, which is also where the keyboard handling lives.
 
 Verified at every size above: no element overflows its box and the page never scrolls
 (`orderOverflow = linesScroll = productsOverflow = pageScroll = 0`). A longer order scrolls inside
@@ -1764,3 +1766,147 @@ Stills from the run: `.amp/in/artifacts/update-dot.png` (the register with the d
 `update-dot-crop.png` (the dot), `update-menu.png` (the drawer with **Update App**), `update-after.png`
 (after the tap: same cart, no dot) and `update-no-update.png` (the quiet state) — orb-local, not
 tracked.
+
+---
+
+## 26. Tablet and phone: one layout, both keyboard behaviours
+
+**Status: implemented and verified on the live register.** Issue #11: *"Optimize the kiosk UI for
+tablet and phone use. Both vertically and horizontally. … Current situation was unstable layout in
+vertical and horizontal. Some layout wont even scroll. Some textbox even hidden when virtual
+keyboard show up!"* — reported on a Huawei MatePad T10s (1920×1200, Chrome on Android) and on a
+phone.
+
+Three separate defects were producing those symptoms. All three were reproduced in Chromium before
+anything was changed, and the numbers below are measured, not estimated.
+
+### 26.1 What was actually wrong
+
+**1. The sub-768px fallback fought core's own phone layout.** The module stacked the two panes with
+`flex-direction: column-reverse` below 760px. Core, meanwhile, has had a single-pane phone branch
+since v17: `.leftpane` and `.rightpane` are shown one at a time with a Pay/Cart bar at the bottom,
+switched by `pos.isSmallProductScreen` (width < 768px). A flex *column* whose height is
+content-sized hands every descendant an indefinite height, so `OrderDisplay`'s scroll box stopped
+scrolling: a 12-line order grew the cart pane from 849px to **1156px** — 307px taller than the
+screen — pushed Payment / Save Order below the fold (the pads at 705-907px), and made `.pos-content`
+scroll as a whole (241px) to reach them. On the phone, reaching the two big buttons meant scrolling
+the *register*, not the order — and when the keyboard was up there was no room left to scroll to.
+
+**2. Dialogs had no maximum height.** A Bootstrap modal is a full-viewport box with a centred
+dialog, and neither part had a cap. With the keyboard up (415px of a 915px screen on the phone;
+380px of 800px on the tablet in landscape) the dialog was taller than the visible area: its fields
+sat behind the keyboard and its buttons below the screen edge, with no scrollbar anywhere. The
+measured case: Save Order at 915×220 — the notes field at y 210-294 and the Save Order button at
+y 312-352, on a 220px-tall screen.
+
+**3. The shell was `100dvh`, which is only right under one of Chrome's two keyboard behaviours.**
+The POS page's viewport meta asks for `interactive-widget=resizes-content` (Chrome 108+), where the
+layout viewport shrinks and `dvh` follows. Older Chrome, and any browser that ignores the attribute,
+uses `resizes-visual`: the layout viewport keeps its full height and the keyboard simply covers its
+lower half. Then `100dvh` is 800px while the user can see 420px — every dialog, every bottom sheet
+and the app shell itself is laid out to a height that includes the covered part.
+
+Two smaller ones, on the way: the payment screen is a `overflow: hidden` flex column on short
+viewports, so its Validate row was cut off (at 915×220 the row was at y 346 of a 220px screen); and
+the kiosk tile grid's 180px floor produced a single column of tiles on a 320px-wide phone, while the
+products popup used a fixed 140px card.
+
+### 26.2 The rule this now follows
+
+**Size everything to what the user can see.** `static/src/viewport/kula_viewport.js` publishes three
+custom properties on `<html>` from `visualViewport`:
+
+| Property | Meaning | Under `resizes-content` | Under `resizes-visual` |
+|---|---|---|---|
+| `--kula-viewport-h` | height of the visible slice | the shrunken layout height | the visible height above the keyboard |
+| `--kula-viewport-top` | how far the slice is scrolled into the layout viewport | 0 | 0, or the browser's scroll offset |
+| `--kula-viewport-bottom` | how much the keyboard covers at the bottom | 0 | the keyboard's height |
+
+The stylesheet consumes them, with `100dvh` / `0px` as fallbacks, so nothing depends on the script
+having run (and on a desktop browser the fallbacks are the correct values):
+
+* `.pos.dvh-100` (the register's shell) — height = `--kula-viewport-h`.
+* `.o_dialog .modal` — top/height = the visible slice; `.modal-dialog` and `.modal-content` capped to
+  it minus 8px top and bottom; `.modal-body { overflow-y: auto }`; header and footer `flex: 0 0 auto`.
+  So the body scrolls and the buttons never leave the screen. The Save Order and Customer popups put
+  their Cancel/Save row in that footer slot rather than at the end of the body
+  (`save_order.xml`, `customer_popup.xml`): a row inside the scrolling body could be scrolled under
+  a field once the body got short — measured at 340px of height, the notes field (194-278) ran under
+  the pinned row (291-351) — while a footer is its own flex row and can never cover the body.
+* Core's phone bottom sheet (`.modal-dialog-centered` is `position: fixed; bottom: 0` below 576px) —
+  raised by `--kula-viewport-bottom`, i.e. it sits directly above the keyboard.
+* The drawer (`.kula-sidebar-menu`) — same cap; its action list already scrolls.
+* Below 620px of height: the payment screen scrolls and its action row sticks to the bottom; the
+  product screen's paddings tighten but nothing goes below 44px; the dialog header shrinks.
+* The focused field is re-centred whenever the visible slice changes (`focusin` plus a
+  `visualViewport` resize/scroll), because the keyboard can open *after* the field already has focus.
+
+Below 768px the module now leaves core's single-pane layout completely alone (§26.1); the pane flip,
+the 300-430px order column and the `border-left` divider are scoped to `min-width: 768px`.
+
+Tile and card sizing follow the same principle — the column count comes from the pane that has to
+hold them, never from a fixed number: phone (menu = full width) `minmax(clamp(140px, 30vw, 240px), 1fr)`
+→ 2 columns at 320-430px, 3 from ~500px; two-pane (menu ≈ 68% of the screen)
+`minmax(clamp(200px, 15vw, 260px), 1fr)` → 2 columns on an 800px portrait tablet, 3 at 960, 4 at
+1280. The tile picture is capped at `26vh` so two rows still fit a 412px-tall landscape screen.
+
+### 26.3 Verified
+
+Chromium (the orb's Chrome, touch emulation on, `(pointer: coarse)` asserted) driven through the real
+register with `.tap()`, at each size, for every screen. "Keyboard" means the layout viewport was
+shrunk by the given height — exactly what `resizes-content` does — and the `resizes-visual` case was
+tested separately by replacing `window.visualViewport` with one reporting a covered slice, which is
+what that browser reports.
+
+| Size | Orientation | Before | After |
+|---|---|---|---|
+| 1280×800 @1.5 (MatePad) | landscape | clean | clean (no change) |
+| 800×1280 @1.5 (MatePad) | portrait | clean | clean (no change) |
+| 960×600 @2 (MatePad at DPR 2) | landscape | Save Order unreachable with the keyboard (button at y 352 of a 300px viewport) | dialog capped at 228px, body scrolls, button at 229 |
+| 915×412 @2.6 (phone) | landscape | product popup grid cut by the footer; Validate at y 346 of 220 with the keyboard | popup scrolls; Validate sticky and reachable |
+| 412×915 @2.6 (phone) | portrait | cart pane 1156px tall, order list not scrolling, whole register scrolled to reach the buttons | pane 849px, order list scrolls, Payment / Save Order pinned |
+| 600×960 @2 (MatePad at DPR 2) | portrait | `.kula-save-order` never became tappable | cart pane and dialog both reachable |
+| 320×480 @3 (small phone) | portrait | one tile per row | 2 columns, all screens reachable |
+
+The two keyboard models, measured at 1280×800, five-line order, Save Order open:
+
+| | Visible height | Shell | Dialog | Title field | Save button |
+|---|---|---|---|---|---|
+| No keyboard | 800 | 800 | 214-570 | 316-354 | 553 ✓ |
+| `resizes-visual`, keyboard 380px | 420 | **420** | 24-380 | 126-164 | 363 ✓ |
+| `resizes-content`, viewport shrunk to 420 | 420 | **420** | 24-380 | 126-164 | 363 ✓ |
+
+On the phone (412×915) the same test puts the bottom sheet at 136-492 with `--kula-viewport-bottom:
+415px`, i.e. above a 415px keyboard, and its Save button at 475 — inside the 500px the user can see.
+
+Nothing was validated during verification, so no sale was created and the seeded day is untouched.
+Stills and the recorded walkthrough: `.amp/in/artifacts/kiosk-responsive/keep/` (orb-local, git-ignored).
+
+### 26.4 Notes for the next person
+
+Five things cost real time here, and none is obvious from the code:
+
+1. **Sass will not compile `min(100dvh, var(--kula-viewport-h, 100dvh))`.** libsass treats `min()` as
+   its own function and rejects a `var()` argument ("is not a number for `min`"), and a failed bundle
+   is served as *the previous stylesheet plus a red error banner* — the symptom is "my CSS does
+   nothing", not a broken page. `var(--kula-viewport-h, 100dvh)` alone is the correct expression
+   anyway: `visualViewport.height` is the layout height when the browser shrinks it for the keyboard,
+   and the visible height when it does not.
+2. **Core out-specifies `.o_dialog .modal-content`.** `:not(.s_popup) > .modal .modal-content
+   { max-height: 100% }` (three classes) beats it, and a percentage against an auto-height dialog
+   resolves to none. Use a three-class selector; otherwise the cap silently does nothing and the body
+   collapses (measured: 32px of body for a 290px form at 915×220).
+3. **The asset bundle is cached per process, keyed by file mtimes.** `regenerate_assets_bundles()` in
+   `odoo shell` clears the DB cache but the serving process keeps its link cache, so the browser can
+   keep loading the old stylesheet. Restart the containers (`podman-compose down` + `up`) after SCSS
+   or template changes, and check the bundle for your identifier *and* for `css_error_message`.
+4. **`isSmallProductScreen` and `isSmall` are different thresholds.** The product screen goes
+   single-pane below 768px; the payment screen, ticket screen and navbar switch below 992px. At
+   800×1280 portrait the product screen is therefore two panes while the payment screen is one
+   column — both core's own layouts, and both work; do not "fix" one to match the other.
+5. **A POS dialog photographed immediately after opening is mid-animation.** Core's phone bottom
+   sheet animates `translateY(100%) → 0` over 200ms; a screenshot or measurement taken at once shows
+   it below the screen and looks like a bug that is not there. Wait ~500ms.
+
+Artifacts: `.amp/in/artifacts/kiosk-responsive/keep/` — `walkthrough-{portrait,landscape,phone}.webm`
+(the touch walkthroughs) and the numbered stills quoted above (`before-*` are the pre-fix captures).

@@ -161,6 +161,36 @@ at ≥992px, and that below that the panes still stack.
 
 **Effort:** 20 min. **Risk:** creates data — clean up after.
 
+**Status 2026-10-19:** done, on the real screen, at both ends of the layout range — 1280×800 (DPR
+1.5) and 412×915 (DPR 2.6). At 1280×800 the receipt is the left-hand pane with the action pane on the
+right and `New Order` at the bottom; on the phone the panes stack (actions above the receipt) and
+`New Order` stays pinned at the bottom, with no scrolling. One sale was validated per size and both
+were deleted afterwards, with their POS pickings; the seeded day (7 orders) and the open session are
+back exactly as the seeder left them. Still: `.amp/in/artifacts/kiosk-responsive/keep/11-phone-receipt.png`
+(the 1280×800 render was measured, not kept).
+
+---
+
+### 8. The phone/tablet layouts were verified in Chromium, not on the tablet
+
+**Why:** the responsive work (§26 of the design doc) was driven in the orb's Chromium with a touch
+emulation profile (`hasTouch`, `(pointer: coarse)` asserted), at the MatePad T10s' CSS viewports
+(1280×800 and 800×1280 at DPR 1.5, 960×600 and 600×960 at DPR 2), on a phone (412×915, 915×412) and
+on a small phone (320×480 at DPR 3). The soft keyboard cannot be raised in a headless browser, so it
+was covered two ways: the viewport was shrunk by the keyboard's height (what Chrome's
+`interactive-widget=resizes-content` does) and, separately, `window.visualViewport` was replaced with
+one reporting a covered slice (what the older `resizes-visual` behaviour reports). Both pass, but
+neither is the same thing as the device's own keyboard and its animation.
+
+**Do:** on the T10s, in both orientations: open Save Order and the Customer form with the keyboard up
+and confirm the field being typed in is visible and Cancel/Save stay on screen; open a 12-line order
+and confirm the list scrolls while Payment / Save Order stay put; rotate with the keyboard open and
+with a dialog open.
+
+**Done when:** the device shows what §26.3 measured, or the difference is written down here.
+
+**Effort:** 15 min on the device. **Risk:** none — read-only.
+
 ---
 
 ## Environment recipes (these cost real time to re-derive)
