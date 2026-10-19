@@ -999,9 +999,10 @@ There are **two** Backend shortcuts inside the register and both are gated now:
 Both call core's `pos.closePos()`, which ends on
 `/odoo/action-point_of_sale.action_client_pos_menu` — the backend. For an administrator that is where
 they land; for a kiosk-only account the door never opens at all, because `kula_security`'s
-`ir.http._dispatch` answers `/web`, `/odoo` and `/scoped_app` with the register. Hiding the button is
+`ir.http._dispatch` answers `/web` and `/odoo` with the register. Hiding the button is
 therefore not a restriction, it is removing a control that would bounce the user back to the screen
-they were on.
+they were on — and the exit itself is *translated* for those accounts rather than left to bounce,
+which is §24.
 
 ### 17.1 The flag, and why it is a field
 
@@ -1607,3 +1608,78 @@ Artifacts: [`docs/images/issue10-chips-before.png`](images/issue10-chips-before.
 [`issue10-chips-after.png`](images/issue10-chips-after.png) — the two captures the issue comment
 carries. Nothing was validated, so no sale was created; the register's local draft was dropped with
 its IndexedDB.
+---
+
+## 24. Install App — the installer page, and the register that has nowhere to go
+
+Reported (issue #2, which had been waiting for a tablet to test on): *"In kiosk when i click Install
+app. The kiosk goes looping and then stuck. What i expect was the app installed as PWA in my phone or
+tablet."*
+
+Two faults, and the second one is what the operator actually sees.
+
+**1. The installer page was gated like the backend.** `kula_security`'s gate answers the paths it
+lists as the backend shell, and the bare `/scoped_app` was in that list. It is not the backend: it is
+core's app-install page (`web.controllers.webmanifest`, `auth="public"` — an icon, a name and an
+Install button), and it is exactly where the register's own entry sends the operator
+(`point_of_sale` Navbar: `/scoped_app?app_id=point_of_sale&app_name=<config>&path=pos/ui/<id>`). So
+the tap that should have installed the till as an app was answered `303 /pos/ui/<id>` and opened a
+*register* instead — for a cashier or a barista, the people whose tablets the app is for. Only the
+prefix is gated now: `/scoped_app/<path>` is the backend client under a scoped app's own alias
+(`web.controllers.home`) and is still answered with the register.
+
+**2. For those accounts a second register is a loop, not a page.** A register that boots calls
+`closeOtherTabs()`, and the tab that was already open answers with `closePos()` →
+`/odoo/action-point_of_sale.action_client_pos_menu`. The gate answers *that* with the register, i.e.
+with a boot, and a boot claims the session and closes the other tab:
+
+```
+tab A (register) ←── close_tabs ─── tab B (a register boots)
+  │ closePos → /odoo → 303 /pos/ui/<config> → boots → close_tabs
+tab B closes → /odoo → 303 /pos/ui/<config> → boots → close_tabs → …
+```
+
+Measured before the fix, both tabs on session 1 as `cashier@kula.example`: they alternate between
+`/pos/ui/<config>` and `/pos/ui/<config>/login` every 2–3 seconds for as long as both are open, and
+every pass runs `resetCashier()`, so both end up parked on Unlock Register — the till is unusable.
+Fault 1 alone does not fix this, because the install flow *creates* the second tab on purpose: once
+the browser accepts the install, core's install page navigates itself to the app's `start_url`.
+
+The exit is not removed, it is **translated**. For a kiosk-only account `pos.redirectToBackend()` now
+ends on core's own `showLoginScreen()` — the Unlock screen, which is the only place such an account
+can be sent and where the server-side redirect was aiming anyway. `closePos()` is left whole, so the
+yielding tab still runs core's `pushOrdersWithClosingPopup()` before it gets here, and because
+nothing navigates the register is not reloaded either: a cart that was mid-order is still on it when
+the operator unlocks again. The condition is `res.users.kula_kiosk_only` — kula_security's own group,
+`False` when that module is not installed, which leaves core's behaviour alone — sent to the register
+as a field for the reason §17.1 gives.
+
+Files: `kula_security/models/ir_http.py` (the gate), `kula_pos_layout/models/res_users.py` (the flag),
+`kula_pos_layout/static/src/app/backend_exit/backend_exit.js` (the translation).
+
+### 24.1 Verified on the live stack
+
+Headless Chromium, 1280×800, `development-odoo`. The browser's own install prompt cannot be driven
+headlessly (a synthetic click on Install raises `NotAllowedError: The prompt() method must be called
+with a user gesture`, which is the harness, not the page), so what is exercised below is everything
+around it, including the exact step core runs once the prompt is accepted —
+`location.replace(manifest.start_url)`.
+
+| Check | Result |
+|---|---|
+| `GET /scoped_app?app_id=point_of_sale&…&path=pos/ui/1` as the cashier | **200**; page renders *Kula Counter* + **Install** (was `303 → /pos/ui/1`) |
+| the same URL as the owner and as the admin | 200, unchanged |
+| `/odoo`, `/web`, `/scoped_app/odoo/sales` as the cashier | still `303 → /pos/ui/1` — the gate still closes the backend |
+| `pos.user.kula_kiosk_only` in the register | cashier `true`, barista `true`, owner `false`, admin `false` (`kula_can_open_backend`: admin `true`, the rest `false`) |
+| *Install App* from the cashier's sidebar | the install page opens in a new tab and the register tab keeps selling — no bounce, no second register |
+| core's post-accept step in that tab | it boots the register; the tab that was already open yields to Unlock Register; **34 s of sampling, no reload** in either tab (`performance.now()` grew monotonically, ~3 s apart) |
+| the same scenario as the admin (control) | unchanged from core: the older tab leaves to the backend (`/odoo` → `/odoo/dashboard`), the new one sits on Unlock Register |
+| a cart mid-order when the tab yields | nothing navigates, so nothing is reloaded: after the other tab took session 1, unlocking the yielded tab showed `Americano x1`, `Rp 10,000` still on it |
+| server log, 12 minutes after the fix | 4 `/odoo` requests in total, all inside the 14 s of sign-in plus the curl probes; nothing repeats |
+
+Two honest limits. First, the native install dialog itself was not exercised here — on the tablet the
+operator taps Install and Chrome asks; nothing in this fix touches that, and the page's own state
+before it (`isAvailable`, manifest, icon, name) is what was captured. Second, core's rule that one
+session has one register is unchanged: after installing, the tab the operator came from sits on
+Unlock Register and one tap puts them back on the till, exactly as they would find it after signing in
+again — the difference is that the tab *stops* there instead of bouncing.

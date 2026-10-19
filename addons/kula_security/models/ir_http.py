@@ -8,15 +8,34 @@ hand -- which is what the client-side guard this replaces could not promise.
 
 What is gated is the backend *shell* and nothing else. The register is its own
 page (/pos/ui/<config>) and the calls it makes are /web/dataset/*, so both are
-left alone; /web/login is also left alone, or nobody could sign in. A member is
-therefore free to work the till and has no way to open the backend around it.
+left alone; /web/login is also left alone, or nobody could sign in; and so is
+the bare /scoped_app, which is not the backend but core's app-install page --
+the one the register's own "Install App" entry opens, and the only way a tablet
+gets the till as an app. A member is therefore free to work the till, to
+install it, and has no way to open the backend around either.
 """
 from odoo import models
 from odoo.http import request
 
 # The backend shell. Matched exactly for /web, so the many sub-trees that live
 # under it (/web/assets, /web/dataset, /web/login) are untouched.
-BACKEND_SHELL_PATHS = ("/web", "/odoo", "/scoped_app")
+#
+# /scoped_app is matched by *prefix* and never by its bare path, because the two
+# are different pages: /scoped_app/<path> is the backend client served under a
+# scoped app's own alias (web.controllers.home), while the bare /scoped_app is
+# core's app-install page (web.controllers.webmanifest), which is public and
+# shows an icon, a name and an Install button -- and which is exactly where the
+# register's own "Install App" entry sends the operator
+# (point_of_sale Navbar: `/scoped_app?app_id=point_of_sale&path=pos/ui/<id>`).
+# Gating the bare path kept cashiers and baristas -- the people whose tablets
+# the app is for -- from ever seeing that page: their tap landed on the register
+# again, which is a second register on the same session, and a second register
+# is a loop rather than a page (the register's own exit path is /odoo, so the
+# gate bounces it back into a boot; kula_pos_layout's backend_exit.js is the
+# other half of this fix). Nothing on the page is backend data, and a PWA
+# installed from it still asks the server for every page it opens: a backend
+# path anywhere in that URL is answered by this guard like any other request.
+BACKEND_SHELL_PATHS = ("/web", "/odoo")
 
 
 def _is_backend_shell(path):
