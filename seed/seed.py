@@ -55,13 +55,63 @@ import getpass
 import os
 import re
 import sys
+import urllib.error
+import urllib.request
 import xmlrpc.client
 from datetime import date, datetime, time, timedelta, timezone
+from time import monotonic, sleep
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_URL = "http://localhost:8069"
-DEFAULT_DB = "development-odoo"
-DEFAULT_USER = "aryana@odoo.com"
+
+
+def load_dotenv(path):
+    """.env -> os.environ, without overriding what the shell already set.
+
+    Compose reads the same file for the containers (POSTGRES_*, ODOO_DB); the
+    RPC side reads the ODOO_* keys, so `python3 seed/seed.py --apply` needs no
+    flags on a local clone. The parser is deliberately the simple case the file
+    is: KEY=VALUE per line, `#` comments, optional quotes. A missing .env is
+    fine -- the environment or the flags then decide.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except FileNotFoundError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key:
+            os.environ.setdefault(key, value.strip().strip("'\""))
+
+
+load_dotenv(os.path.join(os.path.dirname(HERE), ".env"))
+DEFAULT_URL = os.environ.get("ODOO_URL", "http://localhost:8069")
+DEFAULT_DB = os.environ.get("ODOO_DB", "development-odoo")
+DEFAULT_USER = os.environ.get("ODOO_USER", "aryana@odoo.com")
+
+
+def wait_for_odoo(url, timeout=600):
+    """Wait until Odoo answers, because the first `podman-compose up` installs.
+
+    The web container creates the database and installs the apps before it
+    serves HTTP, so a seed run straight after `up -d` would otherwise fail on
+    the first XML-RPC call. Poll the login page every few seconds.
+    """
+    print(f"waiting for Odoo on {url} ...", flush=True)
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"{url}/web/login", timeout=5) as resp:
+                if resp.status == 200:
+                    return
+        except (urllib.error.URLError, OSError):
+            pass
+        sleep(3)
+    sys.exit(f"Odoo did not answer on {url} within {timeout}s")
 
 # kula_security owns the org chart this dataset staffs: the three role groups,
 # the Counter department and the two job positions. The seed installs it when it
@@ -452,6 +502,52 @@ def step_company(o, rep):
         o.call("res.partner", "write", [[partner_id],
                                         {"city": row["city"], "street": row["street"], "tz": TZ}])
     rep.add("company", "updated" if o.apply else "would-update")
+
+
+def step_localization(o, rep):
+    """Kula's country and currency, for a database the stack installed without
+    localizing.
+
+    A database created by the compose command has no country and a USD company,
+    which makes kula_pos_layout's whole-rupiah data file a silent no-op (it
+    searches an *active* IDR). This is what the orb's setup does before the
+    addons load; on a database that is already Indonesian it writes nothing.
+    """
+    country = o.search("res.country", [("code", "=", "ID")], limit=1)
+    if not country:
+        sys.exit("no Indonesia (ID) country record -- is base installed?")
+    idr = o.search("res.currency", [("name", "=", "IDR")], limit=1, active=False)
+    if not idr:
+        sys.exit("no IDR currency record -- is base installed?")
+    country_id, idr_id = country[0], idr[0]
+
+    currency = o.call("res.currency", "read",
+                      [[idr_id], ["active", "rounding", "decimal_places"]])[0]
+    if not currency["active"]:
+        if o.apply:
+            o.call("res.currency", "write", [[idr_id], {"active": True}])
+        rep.add("IDR", "activated" if o.apply else "would-activate")
+    if float(currency["rounding"]) != 1 or int(currency["decimal_places"]) != 0:
+        if o.apply:
+            o.call("res.currency", "write",
+                   [[idr_id], {"rounding": 1, "decimal_places": 0}])
+        rep.add("IDR rounding", "whole rupiah" if o.apply else "would-set")
+
+    company = o.call("res.company", "read", [[1], ["country_id", "currency_id"]])[0]
+    if ((company["country_id"] or [None])[0] != country_id
+            or (company["currency_id"] or [None])[0] != idr_id):
+        if o.apply:
+            o.call("res.company", "write",
+                   [[1], {"country_id": country_id, "currency_id": idr_id}])
+        rep.add("company localization", "Indonesia / IDR" if o.apply else "would-set")
+
+    admin = o.search("res.users", [("login", "=", o.user)], limit=1)
+    if admin:
+        tz = o.call("res.users", "read", [[admin[0]], ["tz"]])[0]["tz"]
+        if tz != TZ:
+            if o.apply:
+                o.call("res.users", "write", [[admin[0]], {"tz": TZ}])
+            rep.add("admin timezone", TZ if o.apply else "would-set")
 
 
 def step_modules(o, rep, modules):
@@ -1166,9 +1262,9 @@ def step_purge(o, rep, data):
 # --------------------------------------------------------------------------- #
 def main():
     ap = argparse.ArgumentParser(description="Seed the Kula dataset into Odoo.")
-    ap.add_argument("--url", default=os.environ.get("ODOO_URL", DEFAULT_URL))
-    ap.add_argument("--db", default=os.environ.get("ODOO_DB", DEFAULT_DB))
-    ap.add_argument("--user", default=os.environ.get("ODOO_USER", DEFAULT_USER))
+    ap.add_argument("--url", default=DEFAULT_URL)
+    ap.add_argument("--db", default=DEFAULT_DB)
+    ap.add_argument("--user", default=DEFAULT_USER)
     ap.add_argument("--password", default=os.environ.get("ODOO_PASSWORD"))
     ap.add_argument("--apply", action="store_true", help="actually write (default is a dry run)")
     ap.add_argument("--purge", action="store_true", help="delete what this script created")
@@ -1214,6 +1310,7 @@ def main():
           f"{len(data['inventory'])} pantry items, "
           f"{len(orders_from(data['sales']))} orders -- all wages >= Rp {MIN_WAGE:,}")
 
+    wait_for_odoo(args.url)
     o = Odoo(args.url, args.db, args.user, args.password, args.apply)
     print(f"connected to {args.db} as {args.user} (uid {o.uid})\n")
     rep = Report()
@@ -1226,6 +1323,7 @@ def main():
     if not args.no_modules:
         step_modules(o, rep, SEED_MODULES)
     step_company(o, rep)
+    step_localization(o, rep)
 
     dept_ids, job_ids = step_structure(o, data["employees"], data["departments"])
     emp_ids = step_employees(o, rep, data["employees"], dept_ids, job_ids)

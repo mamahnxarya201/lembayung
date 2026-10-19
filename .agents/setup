@@ -157,53 +157,19 @@ compose_images() {
     ' docker-compose.yaml
 }
 
-compose_web_image() {
-    # Dedicated awk rather than `compose_images | head -1`: under `pipefail` the
-    # SIGPIPE from head makes the pipeline fail non-deterministically.
-    awk '
-        /^[[:space:]]*image:/ { line=$0
-                                sub(/^[[:space:]]*image:[[:space:]]*/, "", line)
-                                gsub(/["'"'"']/, "", line); print line; exit }
-    ' docker-compose.yaml
-}
-
 # What the devenv `init` script does, inlined: the compose file bind-mounts
 # ./container-data and ./addons, both of which must exist and be prepared.
 prepare_repo_state() {
     [[ -f .env ]] || cp -- .env.example .env
 
     echo "==> creating container-data/ tree"
-    mkdir -p container-data/odoo-web-data container-data/odoo-db-data container-data/config addons
+    mkdir -p container-data/odoo-web-data container-data/odoo-db-data addons
     # odoo runs as uid 100, so these dirs must be traversable.
-    chmod 0755 container-data container-data/config addons
+    chmod 0755 container-data addons
 
-    # /etc/odoo is bind-mounted from container-data/config, which MASKS the
-    # odoo.conf baked into the image. Without it the entrypoint dies with
-    # `configparser.NoSectionError: No section: 'options'`, so seed it from the
-    # image. Image pin is read from the compose file, not duplicated.
-    local conf=container-data/config/odoo.conf
-    if [[ -s $conf ]]; then
-        echo "==> $conf already present, leaving it alone"
-        chmod 0644 -- "$conf"
-    else
-        local image tmp
-        image=$(compose_web_image)
-        [[ -n $image ]] || { echo "could not determine the web image from docker-compose.yaml" >&2; return 1; }
-        echo "==> seeding $conf from $image"
-        tmp=$(mktemp)
-        if ! podman run --rm --entrypoint cat "$image" /etc/odoo/odoo.conf >"$tmp" || [[ ! -s $tmp ]]; then
-            rm -f "$tmp"
-            echo "failed to read /etc/odoo/odoo.conf out of $image" >&2
-            return 1
-        fi
-        mv -- "$tmp" "$conf"
-        # mktemp is 0600 and mv preserves it; odoo (uid 100) must read it.
-        chmod 0644 -- "$conf"
-    fi
-
-    # A bind mount does NOT inherit image ownership; has to be chowned inside
-    # the userns (uid 100/gid 101 are subuids, not host users). Idempotent.
-    podman unshare chown -R 100:101 container-data/odoo-web-data
+    # No config seeding and no host-side chown: /etc/odoo stays the image's own
+    # file now, and the web container chowns the bind-mounted /var/lib/odoo
+    # itself before dropping from root into the odoo user (docker-compose.yaml).
 
     local image
     while read -r image; do
@@ -229,15 +195,17 @@ stop_stack() {
 }
 
 wait_for_odoo() {
+    # The web container creates the database and installs the apps before it
+    # serves HTTP, so a first boot is minutes, not seconds.
     local i
-    for i in $(seq 1 120); do
+    for i in $(seq 1 300); do
         if [[ $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8069/web/database/selector || true) == 200 ]]; then
             echo "Odoo answered on :8069 after ${i}s"
             return 0
         fi
         sleep 1
     done
-    echo "Odoo did not answer on :8069 within 120s" >&2
+    echo "Odoo did not answer on :8069 within 300s" >&2
     podman logs --tail 30 "${COMPOSE_PROJECT}_web_1" >&2 || true
     return 1
 }
@@ -261,7 +229,10 @@ load_db_env() {
 # `shell -d db` for an interactive one.
 odoo_cli() {
     load_db_env
-    podman exec -i "${COMPOSE_PROJECT}_web_1" odoo "$@" \
+    # -u 100: the web service starts as root so it can chown /var/lib/odoo, so
+    # a bare `podman exec` would run Odoo as root. The CLI should be the odoo
+    # user, same as the serving process (setpriv drops to it in compose).
+    podman exec -i -u 100 "${COMPOSE_PROJECT}_web_1" odoo "$@" \
         --no-http \
         --db_host=db --db_user="$POSTGRES_USER" --db_password="$POSTGRES_PASSWORD"
 }
@@ -350,14 +321,19 @@ create_database() {
     # matches the database the repo docs were written against ("My Company",
     # no POS categories, three hand-made products).
     odoo_cli -d "$ODOO_DB" -i "$ODOO_CORE_MODULES" --without-demo=True --stop-after-init
+}
 
-    # README and seed/seed.py both assume the admin login is aryana@odoo.com;
-    # a freshly created database has `admin` instead.
+# README, the orb notes and the seed's default login all say aryana@odoo.com;
+# a freshly created database starts with `admin`. The compose web command
+# creates the database itself on a first boot now, so this has to run on both
+# the created and the already-prepared path. Idempotent.
+ensure_admin_login() {
     odoo_cli shell -d "$ODOO_DB" <<PY
 u = env["res.users"].browse(2)
-u.write({"login": "$ODOO_ADMIN_LOGIN"})
-u.partner_id.write({"email": "$ODOO_ADMIN_LOGIN"})
-env.cr.commit()
+if u.login != "$ODOO_ADMIN_LOGIN":
+    u.write({"login": "$ODOO_ADMIN_LOGIN"})
+    u.partner_id.write({"email": "$ODOO_ADMIN_LOGIN"})
+    env.cr.commit()
 print("admin login:", u.login)
 PY
 }
@@ -427,7 +403,11 @@ assert_idr_is_whole_rupiah() {
 # a day of takings). The stack is up between prepare_database and stop_stack
 # below, and seed/seed.py talks XML-RPC to it.
 seed_kula_dataset() {
-    python3 seed/seed.py --password "$ODOO_ADMIN_PASSWORD" --apply
+    # Explicit credentials: the seed also reads .env (ODOO_*), and a fresh orb's
+    # .env.example now defaults to the plain `admin` login, not this orb's
+    # aryana@odoo.com.
+    python3 seed/seed.py --db "$ODOO_DB" --user "$ODOO_ADMIN_LOGIN" \
+        --password "$ODOO_ADMIN_PASSWORD" --apply
 }
 
 # Starts the stack -- every step after this one needs it up -- and creates the
@@ -445,6 +425,7 @@ prepare_database() {
     else
         run_step "create $ODOO_DB ($ODOO_CORE_MODULES)" create_database
     fi
+    run_step "ensure the admin login ($ODOO_ADMIN_LOGIN)" ensure_admin_login
     touch "$DB_READY_MARKER"
 }
 
@@ -517,14 +498,19 @@ write_orb_notes() {
   module is loaded while the company is still on USD, so `.agents/setup`
   installs the core modules, localizes the company, and only then applies
   `addons/`. When you add a data file to `addons/`, run
-  `podman exec -i lembayung_web_1 odoo -u <module> -d development-odoo
+  `podman exec -i -u 100 lembayung_web_1 odoo -u <module> -d development-odoo
   --without-demo=True --stop-after-init --no-http --db_host=db --db_user=admin
   --db_password=<from .env>` to apply it. `-u`, not `-i`: `-i` on an already
-  installed module is a silent no-op, so your change would never appear.
+  installed module is a silent no-op, so your change would never appear. `-u
+  100` matters because the web service starts as root to chown /var/lib/odoo
+  and drops to the odoo user; a bare exec would otherwise run Odoo as root.
 - The database carries the Kula dataset from this repository's own seeder,
   `seed/seed.py` -- the same script devenv exposes as `seed`. `.agents/setup`
   runs it with `--apply`; by hand it is
-  `python3 seed/seed.py --password admin --apply` (dry run without `--apply`).
+  `python3 seed/seed.py --db development-odoo --user aryana@odoo.com
+  --password admin --apply` (dry run without `--apply`). The explicit `--user`
+  matters: a fresh orb's `.env.example` now sets `ODOO_USER=admin`, while this
+  orb's database admin is renamed to `aryana@odoo.com`.
   It seeds the company (Kula, Jakarta, IDR), the owner / cashier / barista
   logins and their employees in the Counter department, the menu (categories
   Cold Brew Based / Espresso Based / Manual Brew / Kopi Robusta / Tea Based /

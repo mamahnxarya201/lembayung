@@ -5,19 +5,38 @@ services:
       - db
     ports:
       - "8069:8069"
+    # Starts as root only to make the bind-mounted data dir writable by the
+    # odoo user (uid 100), then drops back to it before Odoo runs. Without the
+    # chown a bind mount is owned by the host user and Odoo cannot write
+    # /var/lib/odoo; without the drop Odoo would run as root.
+    user: "0"
     volumes:
       - ./container-data/odoo-web-data:/var/lib/odoo:Z
-      - ./container-data/config:/etc/odoo:Z
       - ./addons:/mnt/extra-addons:Z            # repo-level, git-tracked
     environment:
       HOST: db
       USER: ${POSTGRES_USER:-admin}
       PASSWORD: ${POSTGRES_PASSWORD}
+      ODOO_DB: ${ODOO_DB:-development-odoo}
       ODOO_DEV: "${ODOO_DEV:-}"                 # empty = normal, all/xml,qweb = dev
+    # First boot creates the database and installs the apps. --without-demo is
+    # required: kula_pos_layout raises IDR to whole-rupiah, which Odoo refuses
+    # once demo accounting entries exist. On later boots -i is a no-op.
+    #
     # Dev SMTP: every outgoing email is captured by Mailpit instead of failing
-    # against localhost:25. The first argument must stay `odoo` so the
-    # entrypoint still injects the database arguments (CPM-HANDOFF.md 1.3).
-    command: ["odoo", "--smtp=mail", "--smtp-port=1025"]
+    # against localhost:25. The first argument to the inner entrypoint must
+    # stay `odoo` so it still injects the database arguments (CPM-HANDOFF.md
+    # 1.3).
+    command:
+      - /bin/sh
+      - -c
+      - |
+        chown -R 100:101 /var/lib/odoo
+        exec setpriv --reuid=100 --regid=101 --init-groups /entrypoint.sh odoo \
+          -d "$ODOO_DB" \
+          -i point_of_sale,stock,hr,account,l10n_id,kula_security,kula_workspace,kula_access_matrix,kula_pos_layout \
+          --without-demo=True \
+          --smtp=mail --smtp-port=1025
   mail:
     # Mailpit: SMTP catcher with a web UI. Captured mail is in memory, so it
     # is cleared by `podman-compose down`; that is fine for dev and demos.
