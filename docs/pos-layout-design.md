@@ -1688,3 +1688,79 @@ before it (`isAvailable`, manifest, icon, name) is what was captured. Second, co
 session has one register is unchanged: after installing, the tab the operator came from sits on
 Unlock Register and one tap puts them back on the till, exactly as they would find it after signing in
 again — the difference is that the tab *stops* there instead of bouncing.
+
+---
+
+## 25. Update App — the reload that reaches a till that never reloads
+
+Commanded: *"add feature like in ampcode. Ampcode have these feature 'Reload to update' i like it so
+much. Even in android PWA i could just click it and PWA auto updated."*
+
+A kiosk is a page that stays open for days; on a tablet it is an installed PWA that gets *resumed*,
+not opened. So the client a till runs is the client it loaded — however many versions the server has
+served since — and there was no way, from inside the register, to say "get the new one". Now the
+drawer grows an **Update App** entry while the server is serving a newer client than the page that is
+running, and a dot on the burger says so without the drawer being opened. One tap reloads.
+
+**What "newer" means.** The client *is* its asset bundles. Their URLs carry a version hash
+(`/web/assets/<hash>/point_of_sale.assets_prod.min.js`), and the hash is a digest of the files in the
+bundle (paths and last-modified stamps), so it moves when — and only when — a file in the client
+changes. The page reads its own hash back from its `<script>` and `<link>` tags; the server reports the
+hash it *would* serve now (`pos.config.kula_app_version`); the two being equal is the whole test. No
+clock to trust, no deployment bookkeeping to keep in step by hand.
+
+`kula_app_version` answers for both POS bundles, the light one and the dark one, because
+`point_of_sale.index` picks between them by the `pos_color_scheme` cookie and the register reads back
+the bundle it actually loaded. It goes through `ir.qweb._get_asset_bundle`, the private call on
+purpose: the public entry points *render* a bundle, they do not report its version. That call reads
+`ir.asset` through a process-wide ormcache, which is exactly what makes the answer agree with the
+`t-call-assets` links the running server hands out; a restarted server computes both afresh, and a
+restart is what a deploy is.
+
+**A plain reload is enough.** The POS page is served `Cache-Control: no-store` and its bundles live at
+hashed URLs, so reloading re-fetches both. What a reload does *not* do is ask the service worker to
+look for a new version of itself; that is the one thing the action does first (`registration.update()`,
+resolved in 7 ms on the live register), and the worker is a cache layer here (network first), so the
+order is not load-bearing — the reload is what brings the new client either way.
+
+**Nothing is lost.** A reload comes back to the same route, with the same cashier and the same cart:
+`connected_cashier_<config>` is sessionStorage, which survives a reload, and the order is in
+IndexedDB, which is what the reload reads back. All three were checked on the live register before the
+feature was written, then again across a real update.
+
+Files: `models/pos_config.py` (`kula_app_version`), `static/src/app/update_app/update_app.js` (the
+`kula_update` service: the poll, the comparison, the reload), `static/src/app/navbar/navbar.xml` (the
+entry and the dot), `static/src/app/navbar/sidebar.js` (the service handed to the template),
+`static/src/scss/kula_pos_layout.scss` (the dot).
+
+### 25.1 Verified on the live stack
+
+Headless Chromium at 1280×800, `development-odoo`, as `cashier@kula.example`. A deploy was simulated
+the way a deploy happens: one line appended to a file in the POS bundle
+(`static/src/app/order_line/order_summary.js`, reverted afterwards) and the stack restarted, with the
+register left open across the restart.
+
+| Check | Result |
+|---|---|
+| page hash vs `kula_app_version` on a fresh load | page `b65e197`, server `b65e197` — **no** entry, **no** dot, drawer unchanged (Install App, Reload Data, Close Register) |
+| after the deploy, with no manual call | the 2-minute poll wakes up and flips itself: `available: true` at the first tick after the restart, dot on the burger, **Update App** in the drawer between Reload Data and Close Register |
+| page hash while the update waits | still `b65e197` — the old bundle, i.e. a real mismatch, not a stale flag |
+| tap **Update App** (real pointer click) | the page reloads into `f1952ec`, the server's current bundle; `available: false`, dot and entry gone |
+| what the reload kept | the same route (`/pos/ui/1/product/6ad7084f…`), the same cashier (`Kula Cashier`), the same cart (`Coffee Latte x1`, Rp 16,000) |
+| service worker | registered, `active: activated`, scope `/pos/`, controller `/pos/service-worker.js`; `registration.update()` resolves, no console error |
+| after reverting the probe and restarting | page and server agree again (`25699d1`), no entry, no dot — the control |
+
+Honest limits. First, this was verified in the orb's Chromium, not on an Android tablet: an installed
+PWA cannot be installed or resumed headlessly, so what is proven is the page's own reload and the
+worker update — the PWA path is the same page, and nothing in it branches on display mode. Second,
+the version watched is the *client* (the asset bundles), which is what "the app" means for a till that
+is already open; a change that lives only on the server (Python, data files) needs no reload and is
+not flagged. Third, a page running dev assets (`?debug=assets`, where the hash is the literal `debug`)
+has no version to compare, and the feature stays quiet there; fourth, the entry only exists while
+there is something to update — there is no "force reload" button in the kiosk menu, and core's own
+*Reload Data* beside it is a different action (the register's data, not the app).
+
+Stills from the run: `.amp/in/artifacts/update-dot.png` (the register with the dot),
+`update-dot-crop.png` (the dot), `update-menu.png` (the drawer with **Update App**), `update-after.png`
+(after the tap: same cart, no dot) and `update-no-update.png` (the quiet state) — orb-local, not
+tracked.

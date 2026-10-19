@@ -64,6 +64,18 @@
             <span class="kula-sidebar-title" t-esc="pos.config.name"/>
         </xpath>
 
+        <!-- "Update App" (static/src/app/update_app/update_app.js): the server is
+             serving a newer client than the page this register loaded. It sits
+             right after core's Reload Data — which reloads the register's *data*,
+             not the app, so it is where an operator would look for this too — and
+             exists only while there is something to update. One tap reloads into
+             the new client; the route, the cashier and the cart all survive. -->
+        <xpath expr="//DropdownItem[contains(text(), 'Reload Data')]" position="after">
+            <DropdownItem t-if="this.kulaUpdate.available" onSelected="() => this.kulaUpdate.update()">
+                Update App
+            </DropdownItem>
+        </xpath>
+
         <!-- The Backend entry is the administrator's shortcut, exactly like the
              login screen's own Backend button (login_screen.xml): a kiosk-only
              account cannot open the backend at all — kula_security's guard
@@ -96,6 +108,19 @@
              core's and pos_hr's. -->
         <xpath expr="//DropdownItem[contains(text(), 'Close Register')]" position="attributes">
             <attribute name="onSelected">() => this.kulaCloseRegister()</attribute>
+        </xpath>
+
+        <!-- The burger button carries a dot while a newer client is on the
+             server (update_app.js), so the drawer can say "there is something to
+             update" without being opened. The class is added here rather than
+             matched in CSS (a `:has()` rule would need a browser newer than the
+             tablets this runs on) and the dot is positioned against it. -->
+        <xpath expr="//Dropdown[.//i[contains(@class, 'fa-bars')]]/button" position="attributes">
+            <attribute name="class" add="kula-burger" separator=" "/>
+        </xpath>
+        <xpath expr="//Dropdown[.//i[contains(@class, 'fa-bars')]]/button" position="inside">
+            <span t-if="this.kulaUpdate.available" class="kula-update-dot"
+                  title="A new version of the app is available"/>
         </xpath>
 
         <!-- Category dropdown, immediately left of the search field so the pair

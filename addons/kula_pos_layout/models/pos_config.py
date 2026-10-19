@@ -58,3 +58,32 @@ class PosConfig(models.Model):
              "Leave this on unless you genuinely do not need them at the "
              "counter.",
     )
+
+    def kula_app_version(self):
+        """The asset version of the POS client this server is serving, per bundle.
+
+        Asked by the register (static/src/app/update_app/update_app.js) to know
+        whether the app it is running is still the app the server would hand it.
+        One entry per POS bundle, the light one and the dark one, because the
+        page picks between them by the `pos_color_scheme` cookie
+        (point_of_sale.index) and the register reads back the bundle it actually
+        loaded, hash and all, from its own <script> and <link> tags.
+
+        `_get_asset_bundle` is core's own answer to "which files, and which
+        version" (t-call-assets builds the page links from it), and the version
+        is a hash of those files' paths and last-modified stamps, so it moves
+        when — and only when — a file in the bundle changes. That call is the
+        private one on purpose: the public entry points render a bundle, they do
+        not report its version. It reads `ir.asset` through a process-wide
+        ormcache, which is exactly what makes the answer agree with the links the
+        running server is serving; a *restarted* server computes both afresh,
+        which is what a deploy is (see §25 of the design doc).
+        """
+        versions = {}
+        for bundle_name in ("point_of_sale.assets_prod", "point_of_sale.assets_prod_dark"):
+            assets = self.env["ir.qweb"]._get_asset_bundle(bundle_name)
+            versions[bundle_name] = {
+                "js": assets.get_version("js"),
+                "css": assets.get_version("css"),
+            }
+        return versions

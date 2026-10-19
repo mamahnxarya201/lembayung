@@ -21,6 +21,11 @@ and keeps it usable on any tablet regardless of resolution or orientation.
 * The navbar's burger menu becomes a **sidebar** with a scrim: core's own menu,
   re-painted, so pos_hr's permission-gated entries and pos_restaurant's floor
   entries keep working.
+* **Update App** in that drawer while the server is serving a newer client than
+  the register loaded — a kiosk never reloads on its own, and on a tablet it is a
+  PWA that gets resumed, not opened. One tap reloads into the new client, and the
+  route, the cashier and the cart survive it; meanwhile a dot on the burger says
+  an update is waiting (static/src/app/update_app/, §25 of the design doc).
 * The **Backend** shortcut (login screen and sidebar) is the administrator's:
   hidden for everyone else, because a kiosk-only account cannot open the backend
   anyway (kula_security sends /odoo back to the register).

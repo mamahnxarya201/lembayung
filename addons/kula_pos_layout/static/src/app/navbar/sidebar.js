@@ -1,5 +1,6 @@
 import { useDropdownState } from "@web/core/dropdown/dropdown_hooks";
 import { patch } from "@web/core/utils/patch";
+import { useService } from "@web/core/utils/hooks";
 import { Navbar } from "@point_of_sale/app/components/navbar/navbar";
 
 /**
@@ -22,5 +23,9 @@ patch(Navbar.prototype, {
     setup() {
         super.setup();
         this.kulaBurger = useDropdownState();
+        // The drawer's "Update App" entry, and the dot on the burger that says
+        // one exists (update_app.js): the service owns the polling and the
+        // reload, the template only reads `available`.
+        this.kulaUpdate = useService("kula_update");
     },
 });

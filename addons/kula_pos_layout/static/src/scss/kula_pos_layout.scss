@@ -480,6 +480,27 @@ $kula-radius: 10px;
     white-space: nowrap;
 }
 
+/* The dot on the burger: the drawer has something to say ("Update App",
+   update_app.js) without being opened. Positioned against the button instead of
+   laid out next to the icon, so the burger neither moves nor grows while an
+   update is waiting; pointer-events off, or it would swallow the tap that opens
+   the drawer it is advertising. */
+.kula-burger {
+    position: relative;
+}
+
+.kula-update-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #71639e;
+    box-shadow: 0 0 0 2px #ffffff;
+    pointer-events: none;
+}
+
 /* -----------------------------------------------------------------------------
    14. Kiosk landing view — the menu as category tiles
 
