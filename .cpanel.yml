@@ -1,0 +1,28 @@
+---
+# cPanel Git deployment (cPanel » Files » Git Version Control).
+# Deploys the four custom Odoo 19 addons on every Deploy HEAD Commit.
+# Docs: https://docs.cpanel.net/knowledge-base/web-services/guide-to-git-deployment/
+#
+# ADDONS_PATH must be the custom-addons directory of the Odoo instance on this
+# account — i.e. a directory listed in that instance's `addons_path` in
+# odoo.conf. `$HOME` resolves to the cPanel account's home, so this works
+# without hardcoding a username; edit the path if Odoo lives somewhere else.
+deployment:
+  tasks:
+    - export ADDONS_PATH="$HOME/odoo/custom-addons"
+    - /bin/mkdir -p "$ADDONS_PATH"
+
+    # One line per addon on purpose: never deploy a wildcard (it can pick up
+    # .git and runtime data). `cp -R` merges into an existing addon directory,
+    # so repeated deployments replace files instead of nesting a copy.
+    - /bin/cp -R addons/kula_security "$ADDONS_PATH/"
+    - /bin/cp -R addons/kula_workspace "$ADDONS_PATH/"
+    - /bin/cp -R addons/kula_access_matrix "$ADDONS_PATH/"
+    - /bin/cp -R addons/kula_pos_layout "$ADDONS_PATH/"
+
+    # Bytecode compiled on the dev machine is useless (and can conflict) on
+    # the server; Odoo regenerates it on first import.
+    - /usr/bin/find "$ADDONS_PATH" -type d -name __pycache__ -prune -exec /bin/rm -rf {} +
+
+    # Left for troubleshooting: shows which commit this addons tree came from.
+    - /bin/sh -c 'git rev-parse --short HEAD > "$ADDONS_PATH/.deployed-commit"'
